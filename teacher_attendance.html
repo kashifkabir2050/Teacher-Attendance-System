@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Teacher Attendance System</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 :root{
   --bg:#0f172a;--card:#1e293b;--card2:#273449;--border:#334155;
@@ -12,130 +13,129 @@
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:var(--bg);color:var(--text);font-family:'Segoe UI',sans-serif;min-height:100vh;}
-nav{background:var(--card);padding:14px 24px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);}
-nav h1{font-size:1.2rem;color:var(--accent);}
-.btn-logout{background:var(--red);color:#fff;border:none;padding:7px 16px;border-radius:6px;cursor:pointer;font-size:.85rem;}
-.page{display:none;padding:24px;max-width:1100px;margin:0 auto;}
-.page.active{display:block;}
-/* LOGIN */
-#loginPage{display:flex;justify-content:center;align-items:center;min-height:88vh;}
-.login-card{background:var(--card);padding:40px;border-radius:16px;width:360px;border:1px solid var(--border);}
-.login-card .logo{text-align:center;font-size:3rem;margin-bottom:8px;}
-.login-card h2{text-align:center;margin-bottom:24px;color:var(--accent);}
-input,select,textarea{width:100%;background:#0f172a;border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:8px;font-size:.95rem;margin-bottom:12px;}
+nav{background:var(--card);padding:14px 24px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;}
+nav h1{font-size:1.15rem;color:var(--accent);}
+.btn-logout{background:var(--red);color:#fff;border:none;padding:7px 16px;border-radius:6px;cursor:pointer;font-size:.83rem;}
+input,select,textarea{width:100%;background:#0a1120;border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:8px;font-size:.92rem;margin-bottom:12px;}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);}
-.err{color:var(--red);font-size:.85rem;margin-bottom:8px;min-height:18px;}
-/* BUTTONS */
-.btn{padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:.9rem;font-weight:600;transition:.2s;}
-.btn:hover{opacity:.85;}
+.err{color:var(--red);font-size:.83rem;margin-bottom:6px;min-height:18px;}
+.btn{padding:9px 18px;border:none;border-radius:8px;cursor:pointer;font-size:.88rem;font-weight:600;transition:.15s;}
+.btn:hover{opacity:.85;transform:translateY(-1px);}
+.btn:active{transform:translateY(0);}
 .btn-green{background:var(--green);color:#fff;}
 .btn-red{background:var(--red);color:#fff;}
 .btn-blue{background:var(--blue);color:#0f172a;}
 .btn-orange{background:var(--orange);color:#fff;}
 .btn-yellow{background:var(--yellow);color:#0f172a;}
-.btn-accent{background:var(--accent);color:#fff;width:100%;margin-top:4px;}
+.btn-accent{background:var(--accent);color:#fff;width:100%;margin-top:4px;padding:11px;}
 .btn-gray{background:var(--card2);color:var(--text);border:1px solid var(--border);}
-.btn-group{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;}
-/* CARD */
+.btn-purple{background:#8b5cf6;color:#fff;}
+.btn-group{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;}
 .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;}
-.card h2{color:var(--accent);margin-bottom:16px;font-size:1.1rem;display:flex;align-items:center;gap:8px;}
-/* STATS ROW */
-.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:20px;}
+.card h2{color:var(--accent);margin-bottom:16px;font-size:1.05rem;display:flex;align-items:center;gap:8px;}
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px;}
 .stat-box{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 18px;}
-.stat-box .lbl{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
-.stat-box .val{font-size:1.1rem;font-weight:700;margin-top:4px;color:var(--text);}
-/* INFO ALERTS */
-.alert{padding:12px 16px;border-radius:8px;margin-bottom:10px;font-size:.92rem;}
-.alert-green{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.4);color:#86efac;}
-.alert-blue{background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.4);color:#7dd3fc;}
-.alert-red{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.4);color:#fca5a5;}
-.alert-yellow{background:rgba(234,179,8,.12);border:1px solid rgba(234,179,8,.4);color:#fde047;}
-.alert-orange{background:rgba(249,115,22,.12);border:1px solid rgba(249,115,22,.4);color:#fdba74;}
-/* SUMMARY */
-.sum-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px;}
-.sum-box{border-radius:10px;padding:16px;text-align:center;border:1px solid var(--border);}
-.sum-box .num{font-size:2rem;font-weight:800;}
-.sum-box .lbl2{font-size:.75rem;color:var(--muted);margin-top:4px;text-transform:uppercase;}
-.sb-green{background:rgba(34,197,94,.1);}.sb-red{background:rgba(239,68,68,.1);}
-.sb-yellow{background:rgba(234,179,8,.1);}.sb-orange{background:rgba(249,115,22,.1);}
-/* TABS */
+.stat-box .lbl{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
+.stat-box .val{font-size:1.05rem;font-weight:700;margin-top:4px;}
+.alert{padding:11px 15px;border-radius:8px;margin-bottom:10px;font-size:.9rem;}
+.alert-green{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.35);color:#86efac;}
+.alert-blue{background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.35);color:#7dd3fc;}
+.alert-red{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.35);color:#fca5a5;}
+.alert-yellow{background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.35);color:#fde047;}
+.alert-orange{background:rgba(249,115,22,.1);border:1px solid rgba(249,115,22,.35);color:#fdba74;}
+.sum-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:12px;margin-bottom:20px;}
+.sum-box{border-radius:10px;padding:14px;text-align:center;border:1px solid var(--border);}
+.sum-box .num{font-size:1.9rem;font-weight:800;}
+.sum-box .lbl2{font-size:.72rem;color:var(--muted);margin-top:4px;text-transform:uppercase;}
+.sb-green{background:rgba(34,197,94,.08);}
+.sb-red{background:rgba(239,68,68,.08);}
+.sb-yellow{background:rgba(234,179,8,.08);}
+.sb-orange{background:rgba(249,115,22,.08);}
 .tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
-.tab{padding:8px 18px;border-radius:8px;cursor:pointer;font-size:.9rem;background:var(--card2);border:1px solid var(--border);color:var(--muted);transition:.2s;}
+.tab{padding:8px 16px;border-radius:8px;cursor:pointer;font-size:.87rem;background:var(--card2);border:1px solid var(--border);color:var(--muted);transition:.2s;}
 .tab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
 .tab-content{display:none;}.tab-content.active{display:block;}
-/* TABLE */
 .tbl-wrap{overflow-x:auto;}
-table{width:100%;border-collapse:collapse;font-size:.87rem;}
-thead th{background:var(--card2);color:var(--muted);padding:10px 12px;text-align:left;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;}
-tbody td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle;}
-tbody tr:hover{background:rgba(255,255,255,.03);}
-.badge{padding:3px 10px;border-radius:20px;font-size:.76rem;font-weight:600;text-transform:capitalize;white-space:nowrap;}
+table{width:100%;border-collapse:collapse;font-size:.85rem;}
+thead th{background:var(--card2);color:var(--muted);padding:9px 11px;text-align:left;font-size:.76rem;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;}
+tbody td{padding:9px 11px;border-bottom:1px solid var(--border);vertical-align:middle;}
+tbody tr:hover{background:rgba(255,255,255,.025);}
+.badge{padding:3px 9px;border-radius:20px;font-size:.74rem;font-weight:600;text-transform:capitalize;white-space:nowrap;}
 .b-green{background:rgba(34,197,94,.18);color:#86efac;}
 .b-red{background:rgba(239,68,68,.18);color:#fca5a5;}
 .b-yellow{background:rgba(234,179,8,.18);color:#fde047;}
 .b-orange{background:rgba(249,115,22,.18);color:#fdba74;}
-/* LEAVE FORM */
-.leave-form{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:14px;}
-.leave-form h3{margin-bottom:12px;color:var(--orange);}
-/* FORM GRID */
+.leave-form{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:12px;}
+.leave-form h3{margin-bottom:10px;color:var(--orange);font-size:.95rem;}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 @media(max-width:600px){.form-grid{grid-template-columns:1fr;}.btn-group{flex-direction:column;}}
-/* FILTER ROW */
-.filter-row{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;}
-.filter-row label{color:var(--muted);font-size:.88rem;white-space:nowrap;}
-.filter-row select{width:auto;margin:0;}
-/* LOADING */
-.loading{text-align:center;padding:30px;color:var(--muted);font-size:.9rem;}
-/* SETUP NOTICE */
-.setup-notice{background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);border-radius:10px;padding:14px 18px;margin-bottom:20px;font-size:.85rem;line-height:1.8;}
-.setup-notice h3{color:var(--accent);margin-bottom:6px;}
-.setup-notice code{background:var(--bg);padding:1px 6px;border-radius:4px;color:var(--blue);}
+.filter-row{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+.filter-row label{color:var(--muted);font-size:.85rem;white-space:nowrap;}
+.filter-row select,.filter-row input[type=date]{width:auto;margin:0;}
+.loading{text-align:center;padding:28px;color:var(--muted);font-size:.88rem;}
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:200;display:none;align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:26px;width:480px;max-width:95vw;max-height:90vh;overflow-y:auto;}
+.modal h3{color:var(--accent);margin-bottom:18px;font-size:1.05rem;}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:16px;}
+/* CHARTS GRID */
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;}
+@media(max-width:700px){.charts-grid{grid-template-columns:1fr;}}
+.chart-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;}
+.chart-card h3{color:var(--muted);font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px;}
+.chart-card canvas{max-height:220px;}
+/* MARK ATT FORM */
+.mark-form{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:16px;}
+.mark-form h3{color:var(--orange);margin-bottom:14px;font-size:.95rem;}
+.inline-label{font-size:.8rem;color:var(--muted);margin-bottom:4px;display:block;}
 ::-webkit-scrollbar{width:6px;height:6px;}
 ::-webkit-scrollbar-track{background:var(--bg);}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.action-btn{background:none;border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:6px;cursor:pointer;font-size:.78rem;transition:.15s;}
+.action-btn:hover{border-color:var(--accent);color:var(--accent);}
+.action-btn.del:hover{border-color:var(--red);color:var(--red);}
 </style>
 </head>
 <body>
 
 <nav>
   <h1>📚 Teacher Attendance System</h1>
-  <div style="display:flex;align-items:center;gap:14px;">
-    <span id="navLabel" style="font-size:.85rem;color:var(--muted);"></span>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span id="navLabel" style="font-size:.82rem;color:var(--muted);"></span>
     <button class="btn-logout" id="logoutBtn" style="display:none" onclick="doLogout()">Logout</button>
   </div>
 </nav>
 
-<!-- LOGIN PAGE -->
+<!-- LOGIN -->
 <div id="loginPage" style="display:flex;justify-content:center;align-items:center;min-height:88vh;">
-  <div class="login-card">
-    <div class="logo">🎓</div>
-    <h2>Attendance Portal</h2>
+  <div style="background:var(--card);padding:40px;border-radius:16px;width:360px;border:1px solid var(--border);">
+    <div style="text-align:center;font-size:3rem;margin-bottom:8px;">🎓</div>
+    <h2 style="text-align:center;margin-bottom:22px;color:var(--accent);">Attendance Portal</h2>
     <input type="email" id="loginEmail" placeholder="Email address" />
     <input type="password" id="loginPass" placeholder="Password" />
     <div class="err" id="loginErr"></div>
     <button class="btn btn-accent" onclick="doLogin()">🔐 Login</button>
-    <p style="text-align:center;margin-top:14px;font-size:.78rem;color:var(--muted);">Contact admin for credentials</p>
+    <p style="text-align:center;margin-top:12px;font-size:.76rem;color:var(--muted);">Contact admin for credentials</p>
   </div>
 </div>
 
 <!-- TEACHER PAGE -->
-<div id="teacherPage" style="display:none;padding:24px;max-width:1100px;margin:0 auto;">
+<div id="teacherPage" style="display:none;padding:24px;max-width:1050px;margin:0 auto;">
   <div class="stats-row">
     <div class="stat-box"><div class="lbl">👤 Teacher</div><div class="val" id="tName">—</div></div>
     <div class="stat-box"><div class="lbl">🪪 ID</div><div class="val" id="tID">—</div></div>
-    <div class="stat-box"><div class="lbl">📅 Date</div><div class="val" id="tDate" style="font-size:.9rem;">—</div></div>
+    <div class="stat-box"><div class="lbl">📅 Date</div><div class="val" id="tDate" style="font-size:.85rem;">—</div></div>
     <div class="stat-box"><div class="lbl">⏰ Time</div><div class="val" id="tClock">—</div></div>
   </div>
-
   <div class="card">
     <h2>📋 Mark Attendance</h2>
-    <div style="font-size:.8rem;color:var(--muted);margin-bottom:14px;">
-      ✅ Check-In Window: <strong style="color:var(--green);">6:50 AM – 7:10 AM</strong> &nbsp;|&nbsp;
-      🏁 Check-Out Window: <strong style="color:var(--blue);">2:30 PM – 3:00 PM</strong>
+    <div style="font-size:.78rem;color:var(--muted);margin-bottom:12px;">
+      ✅ Check-In: <strong style="color:var(--green);">6:50 AM – 7:10 AM</strong> &nbsp;|&nbsp;
+      🏁 Check-Out: <strong style="color:var(--blue);">2:30 PM – 3:00 PM</strong>
     </div>
     <div id="tActionBox"><div class="loading">Loading...</div></div>
   </div>
-
   <div class="card">
     <h2>📊 My Attendance Report</h2>
     <div class="filter-row">
@@ -149,63 +149,145 @@ tbody tr:hover{background:rgba(255,255,255,.03);}
     <div class="tbl-wrap">
       <table>
         <thead><tr><th>Date</th><th>Check In</th><th>Check Out</th><th>Status</th><th>Reason</th></tr></thead>
-        <tbody id="tReportBody"><tr><td colspan="5" style="text-align:center;color:var(--muted);">No records</td></tr></tbody>
+        <tbody id="tReportBody"><tr><td colspan="5" class="loading">No records</td></tr></tbody>
       </table>
     </div>
   </div>
 </div>
 
 <!-- ADMIN PAGE -->
-<div id="adminPage" style="display:none;padding:24px;max-width:1100px;margin:0 auto;">
+<div id="adminPage" style="display:none;padding:24px;max-width:1150px;margin:0 auto;">
 
-  <div class="setup-notice">
-    <h3>🔧 Firebase Config Required</h3>
-    Replace the <code>firebaseConfig</code> object in the &lt;script&gt; section at the bottom with your Firebase project credentials from
-    <strong>Firebase Console → Project Settings → Your Apps</strong>.
-  </div>
-
-  <!-- Summary Cards -->
+  <!-- Summary -->
   <div class="sum-grid">
     <div class="sum-box sb-green"><div class="num" id="sumPresent" style="color:var(--green);">0</div><div class="lbl2">Present</div></div>
     <div class="sum-box sb-red"><div class="num" id="sumAbsent" style="color:var(--red);">0</div><div class="lbl2">Absent</div></div>
     <div class="sum-box sb-yellow"><div class="num" id="sumLeave" style="color:var(--yellow);">0</div><div class="lbl2">Leave</div></div>
     <div class="sum-box sb-orange"><div class="num" id="sumShort" style="color:var(--orange);">0</div><div class="lbl2">Short Leave</div></div>
+    <div class="sum-box" style="background:rgba(59,130,246,.08);"><div class="num" id="sumTotal" style="color:var(--accent);">0</div><div class="lbl2">Total Records</div></div>
   </div>
 
   <!-- Tabs -->
   <div class="tabs">
-    <div class="tab active" onclick="adminTab('tabReport',this)">📊 Attendance Report</div>
-    <div class="tab" onclick="adminTab('tabManage',this)">👥 Manage Teachers</div>
+    <div class="tab active" onclick="adminTab('tabReport',this)">📋 Records</div>
+    <div class="tab" onclick="adminTab('tabCharts',this)">📊 Charts</div>
+    <div class="tab" onclick="adminTab('tabMark',this)">✏️ Mark / Edit</div>
+    <div class="tab" onclick="adminTab('tabManage',this)">👥 Teachers</div>
   </div>
 
-  <!-- Tab: Report -->
+  <!-- TAB: Records -->
   <div id="tabReport" class="tab-content active">
     <div class="card">
       <h2>📋 All Attendance Records</h2>
       <div class="filter-row">
         <label>Period:</label>
         <select id="aFilter" onchange="loadAdminReport()">
-          <option value="daily">Daily (Today)</option>
+          <option value="daily">Today</option>
           <option value="weekly">This Week</option>
           <option value="monthly">This Month</option>
         </select>
-        <button class="btn btn-green" onclick="exportCSV()">⬇ Export CSV</button>
+        <label>From:</label>
+        <input type="date" id="aFrom" onchange="loadAdminReport()" style="width:auto;margin:0;" />
+        <label>To:</label>
+        <input type="date" id="aTo" onchange="loadAdminReport()" style="width:auto;margin:0;" />
+        <button class="btn btn-green" onclick="exportCSV()">⬇ CSV</button>
       </div>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>Name</th><th>Teacher ID</th><th>Date</th><th>Check In</th><th>Check Out</th><th>Status</th><th>Reason</th></tr></thead>
-          <tbody id="aReportBody"><tr><td colspan="7" style="text-align:center;color:var(--muted);">Loading...</td></tr></tbody>
+          <thead><tr><th>Name</th><th>ID</th><th>Date</th><th>Check In</th><th>Check Out</th><th>Status</th><th>Reason</th><th>Actions</th></tr></thead>
+          <tbody id="aReportBody"><tr><td colspan="8" class="loading">Loading...</td></tr></tbody>
         </table>
       </div>
     </div>
   </div>
 
-  <!-- Tab: Manage -->
+  <!-- TAB: Charts -->
+  <div id="tabCharts" class="tab-content">
+    <div class="filter-row" style="margin-bottom:16px;">
+      <label>Period:</label>
+      <select id="cFilter" onchange="loadCharts()">
+        <option value="weekly">This Week</option>
+        <option value="monthly" selected>This Month</option>
+      </select>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card"><h3>📊 Overall Status Distribution</h3><canvas id="chartPie"></canvas></div>
+      <div class="chart-card"><h3>📈 Daily Attendance Trend</h3><canvas id="chartLine"></canvas></div>
+      <div class="chart-card"><h3>👥 Per Teacher Summary</h3><canvas id="chartBar"></canvas></div>
+      <div class="chart-card"><h3>📉 Absence Rate by Teacher</h3><canvas id="chartAbsBar"></canvas></div>
+    </div>
+  </div>
+
+  <!-- TAB: Mark / Edit Attendance -->
+  <div id="tabMark" class="tab-content">
+    <div class="card">
+      <h2>✏️ Mark or Edit Attendance</h2>
+      <p style="color:var(--muted);font-size:.82rem;margin-bottom:16px;">Admin can mark attendance for any teacher on any date, or edit existing records.</p>
+
+      <div class="mark-form">
+        <h3>📝 Mark Attendance for Any Teacher / Date</h3>
+        <div class="form-grid">
+          <div>
+            <span class="inline-label">Teacher</span>
+            <select id="mTeacher" style="margin-bottom:0;"></select>
+          </div>
+          <div>
+            <span class="inline-label">Date</span>
+            <input type="date" id="mDate" style="margin-bottom:0;" />
+          </div>
+          <div>
+            <span class="inline-label">Check-In Time</span>
+            <input type="time" id="mCheckIn" style="margin-bottom:0;" />
+          </div>
+          <div>
+            <span class="inline-label">Check-Out Time</span>
+            <input type="time" id="mCheckOut" style="margin-bottom:0;" />
+          </div>
+          <div>
+            <span class="inline-label">Status</span>
+            <select id="mStatus" style="margin-bottom:0;">
+              <option value="present">Present</option>
+              <option value="absent">Absent</option>
+              <option value="leave">Leave</option>
+              <option value="short_leave">Short Leave</option>
+            </select>
+          </div>
+          <div>
+            <span class="inline-label">Reason (optional)</span>
+            <input type="text" id="mReason" placeholder="Leave reason..." style="margin-bottom:0;" />
+          </div>
+        </div>
+        <div class="btn-group" style="margin-top:14px;">
+          <button class="btn btn-green" onclick="adminMarkAttendance()">💾 Save Attendance</button>
+          <button class="btn btn-gray" onclick="clearMarkForm()">✖ Clear</button>
+        </div>
+        <div class="err" id="markErr" style="margin-top:8px;"></div>
+      </div>
+
+      <!-- Search to edit -->
+      <div style="margin-bottom:14px;">
+        <h3 style="font-size:.95rem;color:var(--muted);margin-bottom:10px;">🔍 Search & Edit Existing Records</h3>
+        <div class="filter-row">
+          <label>Date:</label>
+          <input type="date" id="editSearchDate" style="width:auto;margin:0;" />
+          <button class="btn btn-accent" style="width:auto;margin:0;padding:8px 16px;" onclick="searchRecords()">Search</button>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Name</th><th>ID</th><th>Check In</th><th>Check Out</th><th>Status</th><th>Reason</th><th>Edit</th></tr></thead>
+          <tbody id="editBody"><tr><td colspan="7" class="loading">Select a date to search</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: Manage Teachers -->
   <div id="tabManage" class="tab-content">
     <div class="card">
       <h2>➕ Register Teacher</h2>
-      <p style="color:var(--muted);font-size:.83rem;margin-bottom:14px;">
-        First create the teacher in <strong>Firebase Auth → Add User</strong>, then register their profile here using the generated UID.
+      <p style="color:var(--muted);font-size:.81rem;margin-bottom:14px;">
+        Create teacher in <strong>Firebase Auth → Add User</strong> first, then register here with the UID.
       </p>
       <div class="form-grid">
         <input id="nName" placeholder="Full Name" />
@@ -213,207 +295,214 @@ tbody tr:hover{background:rgba(255,255,255,.03);}
         <input id="nUID" placeholder="Firebase Auth UID" />
         <input id="nEmail" placeholder="Email address" />
       </div>
-      <div style="margin-top:4px;">
-        <button class="btn btn-green" onclick="addTeacher()">✅ Register Teacher</button>
-      </div>
+      <button class="btn btn-green" onclick="addTeacher()">✅ Register Teacher</button>
       <div class="err" id="teacherErr" style="margin-top:8px;"></div>
+    </div>
+    <div class="card">
+      <h2>👥 Registered Teachers</h2>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Name</th><th>Teacher ID</th><th>Email</th><th>Role</th></tr></thead>
+          <tbody id="teacherListBody"><tr><td colspan="4" class="loading">Loading...</td></tr></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- Firebase SDK + App Logic -->
+<!-- EDIT MODAL -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <h3>✏️ Edit Attendance Record</h3>
+    <input type="hidden" id="editDocId" />
+    <div class="form-grid">
+      <div>
+        <span class="inline-label">Teacher Name</span>
+        <input type="text" id="editName" readonly style="opacity:.6;" />
+      </div>
+      <div>
+        <span class="inline-label">Date</span>
+        <input type="text" id="editDate" readonly style="opacity:.6;" />
+      </div>
+      <div>
+        <span class="inline-label">Check-In Time</span>
+        <input type="time" id="editCheckIn" />
+      </div>
+      <div>
+        <span class="inline-label">Check-Out Time</span>
+        <input type="time" id="editCheckOut" />
+      </div>
+      <div>
+        <span class="inline-label">Status</span>
+        <select id="editStatus">
+          <option value="present">Present</option>
+          <option value="absent">Absent</option>
+          <option value="leave">Leave</option>
+          <option value="short_leave">Short Leave</option>
+        </select>
+      </div>
+      <div>
+        <span class="inline-label">Reason</span>
+        <input type="text" id="editReason" placeholder="Leave reason..." />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-gray" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-green" onclick="saveEditRecord()">💾 Save Changes</button>
+    </div>
+    <div class="err" id="editErr"></div>
+  </div>
+</div>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, collection, query,
-  where, getDocs, orderBy, updateDoc, Timestamp }
+  where, getDocs, orderBy, updateDoc, Timestamp, deleteDoc }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// ============================================================
-// 🔴 REPLACE THIS WITH YOUR FIREBASE CONFIG
-// ============================================================
- const firebaseConfig = {
-    apiKey: "AIzaSyDgb-SWFVGfwN8hSvPnphMrqXklFEtnCdQ",
-    authDomain: "teacher-attendance-syste-66032.firebaseapp.com",
-    projectId: "teacher-attendance-syste-66032",
-    storageBucket: "teacher-attendance-syste-66032.firebasestorage.app",
-    messagingSenderId: "990566777718",
-    appId: "1:990566777718:web:fd284110a51c89df163057"
-  };
-// ============================================================
+// ── Firebase Config ──────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyDgb-SWFVGfwN8hSvPnphMrqXklFEtnCdQ",
+  authDomain: "teacher-attendance-syste-66032.firebaseapp.com",
+  projectId: "teacher-attendance-syste-66032",
+  storageBucket: "teacher-attendance-syste-66032.firebasestorage.app",
+  messagingSenderId: "990566777718",
+  appId: "1:990566777718:web:fd284110a51c89df163057"
+};
 
-let app, auth, db;
-try {
-  app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  db   = getFirestore(app);
-} catch(e) {
-  showEl('loginErr', '⚠️ Firebase config error: ' + e.message);
-}
+let app,auth,db;
+try{ app=initializeApp(firebaseConfig); auth=getAuth(app); db=getFirestore(app); }
+catch(e){ document.getElementById('loginErr').textContent='Firebase error: '+e.message; }
 
-// ─── Helpers ───────────────────────────────────────────────
-const $   = id => document.getElementById(id);
-const pad = n  => String(n).padStart(2,'0');
-let clockInterval = null;
+// ── Helpers ──────────────────────────────────────────────────
+const $  = id=>document.getElementById(id);
+const pad= n=>String(n).padStart(2,'0');
+let clockInterval=null, chartPie=null, chartLine=null, chartBar=null, chartAbsBar=null;
+let allTeachers=[];
 
-function todayStr() {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+function todayStr(){ const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function nowMin(){ const d=new Date(); return d.getHours()*60+d.getMinutes(); }
+function fmtTime(ts){
+  if(!ts) return '—';
+  try{ const d=(ts&&ts.toDate)?ts.toDate():new Date(ts); return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}); }
+  catch(e){ return '—'; }
 }
-function nowMin() {
-  const d = new Date();
-  return d.getHours()*60 + d.getMinutes();
-}
-function fmtTime(ts) {
-  if (!ts) return '—';
-  try {
-    const d = (ts && ts.toDate) ? ts.toDate() : new Date(ts);
-    return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
-  } catch(e){ return '—'; }
-}
-function fmtDate(str) {
-  try {
-    const d = new Date(str + 'T00:00:00');
-    return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
-  } catch(e){ return str; }
-}
-function getDateRange(filter) {
-  const now = new Date();
-  const y=now.getFullYear(), mo=now.getMonth(), d=now.getDate();
-  if(filter==='daily') return { start: todayStr(), end: todayStr() };
-  if(filter==='weekly') {
-    const day=now.getDay();
-    return {
-      start: fmt(new Date(y,mo,d-day)),
-      end:   fmt(new Date(y,mo,d+(6-day)))
-    };
-  }
-  return {
-    start: `${y}-${pad(mo+1)}-01`,
-    end:   `${y}-${pad(mo+1)}-${pad(new Date(y,mo+1,0).getDate())}`
-  };
+function fmtDate(str){
+  try{ const d=new Date(str+'T00:00:00'); return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}); }
+  catch(e){ return str; }
 }
 function fmt(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
 function badgeCls(s){ return {present:'b-green',absent:'b-red',leave:'b-yellow',short_leave:'b-orange'}[s]||'b-yellow'; }
-function showEl(id,txt){ const el=$(id); if(el) el.textContent=txt; }
 
-// Time windows (minutes since midnight)
-const CI_S=6*60+50, CI_E=7*60+10, CO_S=14*60+30, CO_E=15*60;
-function inCI(){ const n=nowMin(); return n>=CI_S&&n<=CI_E; }
-function inCO(){ const n=nowMin(); return n>=CO_S&&n<=CO_E; }
+function getDateRange(filter){
+  const now=new Date(); const y=now.getFullYear(),mo=now.getMonth(),d=now.getDate();
+  if(filter==='daily') return {start:todayStr(),end:todayStr()};
+  if(filter==='weekly'){ const day=now.getDay(); return {start:fmt(new Date(y,mo,d-day)),end:fmt(new Date(y,mo,d+(6-day)))}; }
+  return {start:`${y}-${pad(mo+1)}-01`,end:`${y}-${pad(mo+1)}-${pad(new Date(y,mo+1,0).getDate())}`};
+}
 
-// ─── Page switching ─────────────────────────────────────────
+// time-string (HH:MM) to Timestamp
+function timeStrToTimestamp(dateStr, timeStr){
+  if(!timeStr) return null;
+  const [h,m]=timeStr.split(':').map(Number);
+  const d=new Date(dateStr+'T00:00:00');
+  d.setHours(h,m,0,0);
+  return Timestamp.fromDate(d);
+}
+function tsToTimeStr(ts){
+  if(!ts) return '';
+  try{ const d=ts.toDate?ts.toDate():new Date(ts); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+  catch(e){ return ''; }
+}
+
+// ── Page switching ────────────────────────────────────────────
 function showPage(id){
   ['loginPage','teacherPage','adminPage'].forEach(p=>{
-    const el=$(p);
-    if(el) el.style.display = p===id ? (id==='loginPage'?'flex':'block') : 'none';
+    const el=$(p); if(!el) return;
+    el.style.display = p===id?(id==='loginPage'?'flex':'block'):'none';
   });
 }
 
-// ─── Auth state ─────────────────────────────────────────────
-let currentUser=null, currentRole=null, currentTeacher=null;
+// ── Auth ──────────────────────────────────────────────────────
+let currentUser=null,currentRole=null,currentTeacher=null;
 
-onAuthStateChanged(auth, async user => {
+onAuthStateChanged(auth, async user=>{
   if(user){
     currentUser=user;
-    try {
-      const snap = await getDoc(doc(db,'users',user.uid));
+    try{
+      const snap=await getDoc(doc(db,'users',user.uid));
       if(snap.exists()){
-        const data = snap.data();
-        currentRole    = data.role;
-        currentTeacher = data;
+        const data=snap.data();
+        currentRole=data.role; currentTeacher=data;
         $('logoutBtn').style.display='';
         if(data.role==='admin'){
           $('navLabel').textContent='Admin Portal';
           showPage('adminPage');
           loadAdminReport();
+          loadTeacherList();
+          loadTeacherDropdown();
+          setTimeout(loadCharts,400);
         } else {
           $('navLabel').textContent='Teacher Portal';
           showPage('teacherPage');
           initTeacherDashboard(data);
         }
       } else {
-        alert('User profile not found in Firestore. Please ask admin to register your account.');
+        alert('Profile not found. Ask admin to register your account.');
         await signOut(auth);
       }
-    } catch(e){
-      console.error('Error fetching user doc:', e);
-      alert('Error loading user data: ' + e.message);
-    }
+    } catch(e){ alert('Error: '+e.message); }
   } else {
     currentUser=null; currentRole=null; currentTeacher=null;
-    $('logoutBtn').style.display='none';
-    $('navLabel').textContent='';
+    $('logoutBtn').style.display='none'; $('navLabel').textContent='';
     showPage('loginPage');
     if(clockInterval){ clearInterval(clockInterval); clockInterval=null; }
   }
 });
 
-// ─── Login / Logout ─────────────────────────────────────────
-window.doLogin = async () => {
-  const email = $('loginEmail').value.trim();
-  const pass  = $('loginPass').value.trim();
+window.doLogin=async()=>{
+  const email=$('loginEmail').value.trim(), pass=$('loginPass').value.trim();
   $('loginErr').textContent='';
   if(!email||!pass){ $('loginErr').textContent='Enter email and password.'; return; }
-  try {
-    await signInWithEmailAndPassword(auth, email, pass);
-  } catch(e){
-    $('loginErr').textContent = 'Login failed: ' + e.message;
-  }
+  try{ await signInWithEmailAndPassword(auth,email,pass); }
+  catch(e){ $('loginErr').textContent='Login failed: '+e.message; }
 };
-window.doLogout = async () => {
-  await signOut(auth);
-};
+window.doLogout=async()=>{ await signOut(auth); };
 
-// ─── TEACHER DASHBOARD ──────────────────────────────────────
+// ── TEACHER DASHBOARD ─────────────────────────────────────────
+const CI_S=6*60+50,CI_E=7*60+10,CO_S=14*60+30,CO_E=15*60;
+function inCI(){ const n=nowMin(); return n>=CI_S&&n<=CI_E; }
+function inCO(){ const n=nowMin(); return n>=CO_S&&n<=CO_E; }
+
 function initTeacherDashboard(data){
   const now=new Date();
-  $('tName').textContent = data.name || '—';
-  $('tID').textContent   = data.teacherId || currentUser.uid.slice(0,8).toUpperCase();
-  $('tDate').textContent = now.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
-
+  $('tName').textContent=data.name||'—';
+  $('tID').textContent=data.teacherId||currentUser.uid.slice(0,8).toUpperCase();
+  $('tDate').textContent=now.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
   if(clockInterval) clearInterval(clockInterval);
-  function tick(){ if($('tClock')) $('tClock').textContent = new Date().toLocaleTimeString('en-US'); }
-  tick();
-  clockInterval = setInterval(tick, 1000);
-
-  renderAttendanceBox();
-  loadTeacherReport();
+  const tick=()=>{ if($('tClock')) $('tClock').textContent=new Date().toLocaleTimeString('en-US'); };
+  tick(); clockInterval=setInterval(tick,1000);
+  renderAttendanceBox(); loadTeacherReport();
 }
 
 async function renderAttendanceBox(){
-  const box = $('tActionBox');
-  if(!box) return;
+  const box=$('tActionBox'); if(!box) return;
   box.innerHTML='<div class="loading">Loading...</div>';
-
-  const docId = `${currentUser.uid}_${todayStr()}`;
-  let rec = null;
-  try {
-    const snap = await getDoc(doc(db,'attendance',docId));
-    if(snap.exists()) rec = snap.data();
-  } catch(e){ console.error(e); }
-
+  const docId=`${currentUser.uid}_${todayStr()}`;
+  let rec=null;
+  try{ const snap=await getDoc(doc(db,'attendance',docId)); if(snap.exists()) rec=snap.data(); }
+  catch(e){ console.error(e); }
   box.innerHTML='';
-
-  // Show existing records
   if(rec){
-    if(rec.checkIn){
-      box.innerHTML += `<div class="alert alert-green">✅ Checked in at <strong>${fmtTime(rec.checkIn)}</strong> — Status: <strong>${(rec.status||'').replace('_',' ')}</strong></div>`;
-    }
-    if(rec.checkOut){
-      box.innerHTML += `<div class="alert alert-blue">🏁 Checked out at <strong>${fmtTime(rec.checkOut)}</strong></div>`;
-    }
-    if(rec.leaveReason){
-      box.innerHTML += `<div class="alert alert-orange">📝 Reason: ${rec.leaveReason}</div>`;
-    }
+    if(rec.checkIn) box.innerHTML+=`<div class="alert alert-green">✅ Checked in at <strong>${fmtTime(rec.checkIn)}</strong> — <strong>${(rec.status||'').replace('_',' ')}</strong></div>`;
+    if(rec.checkOut) box.innerHTML+=`<div class="alert alert-blue">🏁 Checked out at <strong>${fmtTime(rec.checkOut)}</strong></div>`;
+    if(rec.leaveReason) box.innerHTML+=`<div class="alert alert-orange">📝 ${rec.leaveReason}</div>`;
   }
-
-  // Action buttons
-  if(!rec || !rec.checkIn){
+  if(!rec||!rec.checkIn){
     if(inCI()){
-      box.innerHTML += `<div class="alert alert-green" style="margin-bottom:10px;">⏰ Check-In window is <strong>OPEN</strong> (6:50 AM – 7:10 AM)</div>`;
-      box.innerHTML += `
+      box.innerHTML+=`<div class="alert alert-green">⏰ Check-In window is <strong>OPEN</strong></div>
         <div class="btn-group">
           <button class="btn btn-green" onclick="window._submitCheckin('present')">✅ Present</button>
           <button class="btn btn-orange" onclick="window._openLeave('short_leave')">⏱ Short Leave</button>
@@ -422,214 +511,345 @@ async function renderAttendanceBox(){
         </div>`;
     } else {
       const n=nowMin();
-      if(n < CI_S){
-        box.innerHTML += `<div class="alert alert-yellow">⏳ Check-In opens at <strong>6:50 AM</strong>. Please wait.</div>`;
-      } else {
-        box.innerHTML += `<div class="alert alert-red">❌ Check-In window closed (6:50 AM – 7:10 AM). Please contact admin.</div>`;
-      }
+      box.innerHTML+=n<CI_S
+        ?`<div class="alert alert-yellow">⏳ Check-In opens at <strong>6:50 AM</strong></div>`
+        :`<div class="alert alert-red">❌ Check-In window closed (6:50–7:10 AM)</div>`;
     }
-  } else if(rec && rec.checkIn && !rec.checkOut){
+  } else if(rec&&rec.checkIn&&!rec.checkOut){
     if(inCO()){
-      box.innerHTML += `<div class="alert alert-blue" style="margin-bottom:10px;">⏰ Check-Out window is <strong>OPEN</strong> (2:30 PM – 3:00 PM)</div>`;
-      box.innerHTML += `<button class="btn btn-blue" onclick="window._submitCheckout()">🏁 Check Out Now</button>`;
+      box.innerHTML+=`<div class="alert alert-blue">⏰ Check-Out window is <strong>OPEN</strong></div>
+        <button class="btn btn-blue" onclick="window._submitCheckout()">🏁 Check Out Now</button>`;
     } else {
       const n=nowMin();
-      if(n < CO_S){
-        box.innerHTML += `<div class="alert alert-yellow">⏳ Check-Out window opens at <strong>2:30 PM</strong>.</div>`;
-      } else {
-        box.innerHTML += `<div class="alert alert-red">❌ Check-Out window closed (2:30 PM – 3:00 PM).</div>`;
-      }
+      box.innerHTML+=n<CO_S
+        ?`<div class="alert alert-yellow">⏳ Check-Out opens at <strong>2:30 PM</strong></div>`
+        :`<div class="alert alert-red">❌ Check-Out window closed (2:30–3:00 PM)</div>`;
     }
-  } else if(rec && rec.checkOut){
-    box.innerHTML += `<div class="alert alert-green">✅ Attendance complete for today!</div>`;
+  } else if(rec&&rec.checkOut){
+    box.innerHTML+=`<div class="alert alert-green">✅ Attendance complete for today!</div>`;
   }
-
-  // Leave form (hidden by default)
-  box.innerHTML += `
+  box.innerHTML+=`
     <div id="leaveForm" style="display:none;" class="leave-form">
       <h3 id="leaveFTitle">Leave Request</h3>
-      <select id="leaveTypeSel">
-        <option value="leave">Full Day Leave</option>
-        <option value="short_leave">Short Leave (Half Day)</option>
-      </select>
+      <select id="leaveTypeSel"><option value="leave">Full Day Leave</option><option value="short_leave">Short Leave</option></select>
       <input type="text" id="leaveReasonInp" placeholder="Enter reason..." />
       <div class="btn-group">
-        <button class="btn btn-green" onclick="window._submitLeave()">Submit Leave</button>
+        <button class="btn btn-green" onclick="window._submitLeave()">Submit</button>
         <button class="btn btn-gray" onclick="document.getElementById('leaveForm').style.display='none'">Cancel</button>
       </div>
     </div>`;
 }
 
-window._openLeave = type => {
-  const f = $('leaveForm');
-  if(!f) return;
-  f.style.display='block';
-  $('leaveTypeSel').value=type;
-  $('leaveFTitle').textContent = type==='short_leave'?'Short Leave Request':'Leave Request';
+window._openLeave=type=>{ const f=$('leaveForm'); if(!f) return; f.style.display='block'; $('leaveTypeSel').value=type; $('leaveFTitle').textContent=type==='short_leave'?'Short Leave':'Leave Request'; };
+window._submitCheckin=async status=>{
+  const docId=`${currentUser.uid}_${todayStr()}`;
+  try{
+    await setDoc(doc(db,'attendance',docId),{ uid:currentUser.uid, teacherId:currentTeacher.teacherId||currentUser.uid.slice(0,8).toUpperCase(), name:currentTeacher.name, date:todayStr(), checkIn:Timestamp.now(), checkOut:null, status, leaveReason:'' });
+    alert('✅ Marked: '+status.replace('_',' ')); renderAttendanceBox(); loadTeacherReport();
+  }catch(e){ alert('Error: '+e.message); }
 };
-
-window._submitCheckin = async status => {
-  const docId = `${currentUser.uid}_${todayStr()}`;
-  try {
-    await setDoc(doc(db,'attendance',docId),{
-      uid: currentUser.uid,
-      teacherId: currentTeacher.teacherId||currentUser.uid.slice(0,8).toUpperCase(),
-      name: currentTeacher.name,
-      date: todayStr(),
-      checkIn: Timestamp.now(),
-      checkOut: null,
-      status: status,
-      leaveReason: ''
-    });
-    alert('✅ Attendance marked: ' + status.replace('_',' '));
-    renderAttendanceBox();
-    loadTeacherReport();
-  } catch(e){ alert('Error: '+e.message); }
+window._submitLeave=async()=>{
+  const type=$('leaveTypeSel').value, reason=$('leaveReasonInp').value.trim();
+  if(!reason){ alert('Enter a reason.'); return; }
+  const docId=`${currentUser.uid}_${todayStr()}`;
+  try{
+    await setDoc(doc(db,'attendance',docId),{ uid:currentUser.uid, teacherId:currentTeacher.teacherId||currentUser.uid.slice(0,8).toUpperCase(), name:currentTeacher.name, date:todayStr(), checkIn:Timestamp.now(), checkOut:null, status:type, leaveReason:reason });
+    alert('✅ Leave submitted!'); renderAttendanceBox(); loadTeacherReport();
+  }catch(e){ alert('Error: '+e.message); }
 };
-
-window._submitLeave = async () => {
-  const type   = $('leaveTypeSel').value;
-  const reason = $('leaveReasonInp').value.trim();
-  if(!reason){ alert('Please enter a reason.'); return; }
-  const docId  = `${currentUser.uid}_${todayStr()}`;
-  try {
-    await setDoc(doc(db,'attendance',docId),{
-      uid: currentUser.uid,
-      teacherId: currentTeacher.teacherId||currentUser.uid.slice(0,8).toUpperCase(),
-      name: currentTeacher.name,
-      date: todayStr(),
-      checkIn: Timestamp.now(),
-      checkOut: null,
-      status: type,
-      leaveReason: reason
-    });
-    alert('✅ Leave submitted!');
-    renderAttendanceBox();
-    loadTeacherReport();
-  } catch(e){ alert('Error: '+e.message); }
-};
-
-window._submitCheckout = async () => {
-  const docId = `${currentUser.uid}_${todayStr()}`;
-  try {
-    await updateDoc(doc(db,'attendance',docId),{ checkOut: Timestamp.now() });
-    alert('✅ Checked out successfully!');
-    renderAttendanceBox();
-    loadTeacherReport();
-  } catch(e){ alert('Error: '+e.message); }
+window._submitCheckout=async()=>{
+  const docId=`${currentUser.uid}_${todayStr()}`;
+  try{ await updateDoc(doc(db,'attendance',docId),{ checkOut:Timestamp.now() }); alert('✅ Checked out!'); renderAttendanceBox(); loadTeacherReport(); }
+  catch(e){ alert('Error: '+e.message); }
 };
 
 async function loadTeacherReport(){
-  const filter = $('tFilter') ? $('tFilter').value : 'daily';
-  const {start,end} = getDateRange(filter);
-  const tbody = $('tReportBody');
-  if(!tbody) return;
-  tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted);">Loading...</td></tr>';
-  try {
-    const q = query(collection(db,'attendance'),
-      where('uid','==',currentUser.uid),
-      where('date','>=',start),
-      where('date','<=',end),
-      orderBy('date','desc'));
-    const snap = await getDocs(q);
-    const rows=[];
-    snap.forEach(d=>rows.push(d.data()));
+  const filter=$('tFilter')?$('tFilter').value:'daily';
+  const {start,end}=getDateRange(filter);
+  const tbody=$('tReportBody'); if(!tbody) return;
+  tbody.innerHTML='<tr><td colspan="5" class="loading">Loading...</td></tr>';
+  try{
+    const q=query(collection(db,'attendance'),where('uid','==',currentUser.uid),where('date','>=',start),where('date','<=',end),orderBy('date','desc'));
+    const snap=await getDocs(q); const rows=[]; snap.forEach(d=>rows.push(d.data()));
     tbody.innerHTML='';
-    if(!rows.length){
-      tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted);">No records found</td></tr>';
-      return;
-    }
-    rows.forEach(r=>{
-      const tr=document.createElement('tr');
-      tr.innerHTML=`<td>${fmtDate(r.date)}</td><td>${fmtTime(r.checkIn)}</td><td>${fmtTime(r.checkOut)}</td>
-        <td><span class="badge ${badgeCls(r.status)}">${(r.status||'').replace('_',' ')}</span></td>
-        <td>${r.leaveReason||'—'}</td>`;
-      tbody.appendChild(tr);
-    });
-  } catch(e){
-    tbody.innerHTML=`<tr><td colspan="5" style="text-align:center;color:var(--red);">Error: ${e.message}</td></tr>`;
-  }
+    if(!rows.length){ tbody.innerHTML='<tr><td colspan="5" class="loading">No records</td></tr>'; return; }
+    rows.forEach(r=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${fmtDate(r.date)}</td><td>${fmtTime(r.checkIn)}</td><td>${fmtTime(r.checkOut)}</td><td><span class="badge ${badgeCls(r.status)}">${(r.status||'').replace('_',' ')}</span></td><td>${r.leaveReason||'—'}</td>`; tbody.appendChild(tr); });
+  }catch(e){ tbody.innerHTML=`<tr><td colspan="5" style="color:var(--red);text-align:center;">Error: ${e.message}</td></tr>`; }
 }
-window.loadTeacherReport = loadTeacherReport;
+window.loadTeacherReport=loadTeacherReport;
 
-// ─── ADMIN DASHBOARD ────────────────────────────────────────
+// ── ADMIN: Report ─────────────────────────────────────────────
 async function loadAdminReport(){
-  const filter = $('aFilter') ? $('aFilter').value : 'daily';
-  const {start,end} = getDateRange(filter);
-  const tbody = $('aReportBody');
-  if(!tbody) return;
-  tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);">Loading...</td></tr>';
-  try {
-    const q = query(collection(db,'attendance'),
-      where('date','>=',start),
-      where('date','<=',end),
-      orderBy('date','desc'));
-    const snap = await getDocs(q);
-    const rows=[];
-    snap.forEach(d=>rows.push(d.data()));
-
-    // Summary
+  const filterEl=$('aFilter'), fromEl=$('aFrom'), toEl=$('aTo');
+  let start,end;
+  if(fromEl&&fromEl.value&&toEl&&toEl.value){ start=fromEl.value; end=toEl.value; }
+  else{ const r=getDateRange(filterEl?filterEl.value:'daily'); start=r.start; end=r.end; }
+  const tbody=$('aReportBody'); if(!tbody) return;
+  tbody.innerHTML='<tr><td colspan="8" class="loading">Loading...</td></tr>';
+  try{
+    const q=query(collection(db,'attendance'),where('date','>=',start),where('date','<=',end),orderBy('date','desc'));
+    const snap=await getDocs(q); const rows=[]; snap.forEach(d=>rows.push({id:d.id,...d.data()}));
     const cnt={present:0,absent:0,leave:0,short_leave:0};
     rows.forEach(r=>{ if(cnt[r.status]!==undefined) cnt[r.status]++; });
-    $('sumPresent').textContent=cnt.present;
-    $('sumAbsent').textContent=cnt.absent;
-    $('sumLeave').textContent=cnt.leave;
-    $('sumShort').textContent=cnt.short_leave;
-
+    $('sumPresent').textContent=cnt.present; $('sumAbsent').textContent=cnt.absent;
+    $('sumLeave').textContent=cnt.leave; $('sumShort').textContent=cnt.short_leave;
+    $('sumTotal').textContent=rows.length;
     tbody.innerHTML='';
-    if(!rows.length){
-      tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);">No records found</td></tr>';
-      return;
-    }
+    if(!rows.length){ tbody.innerHTML='<tr><td colspan="8" class="loading">No records found</td></tr>'; return; }
     rows.forEach(r=>{
       const tr=document.createElement('tr');
       tr.innerHTML=`<td>${r.name||'—'}</td><td>${r.teacherId||'—'}</td><td>${fmtDate(r.date)}</td>
         <td>${fmtTime(r.checkIn)}</td><td>${fmtTime(r.checkOut)}</td>
         <td><span class="badge ${badgeCls(r.status)}">${(r.status||'').replace('_',' ')}</span></td>
-        <td>${r.leaveReason||'—'}</td>`;
+        <td>${r.leaveReason||'—'}</td>
+        <td style="display:flex;gap:6px;">
+          <button class="action-btn" onclick="window._openEditModal('${r.id}')">✏️ Edit</button>
+          <button class="action-btn del" onclick="window._deleteRecord('${r.id}')">🗑</button>
+        </td>`;
       tbody.appendChild(tr);
     });
-  } catch(e){
-    tbody.innerHTML=`<tr><td colspan="7" style="text-align:center;color:var(--red);">Error: ${e.message}<br><small>Check Firestore indexes & rules</small></td></tr>`;
-  }
+  }catch(e){ tbody.innerHTML=`<tr><td colspan="8" style="color:var(--red);text-align:center;">Error: ${e.message}<br><small>Check Firestore indexes</small></td></tr>`; }
 }
-window.loadAdminReport = loadAdminReport;
+window.loadAdminReport=loadAdminReport;
 
-window.addTeacher = async () => {
-  const name  = $('nName').value.trim();
-  const tid   = $('nTID').value.trim();
-  const uid   = $('nUID').value.trim();
-  const email = $('nEmail').value.trim();
-  $('teacherErr').textContent='';
-  if(!name||!tid||!uid||!email){ $('teacherErr').textContent='All fields are required.'; return; }
-  try {
-    await setDoc(doc(db,'users',uid),{ name, teacherId:tid, email, role:'teacher' });
-    alert(`✅ Teacher "${name}" registered successfully!`);
-    $('nName').value=$('nTID').value=$('nUID').value=$('nEmail').value='';
-  } catch(e){
-    $('teacherErr').textContent='Error: '+e.message;
-  }
+// ── ADMIN: Teacher List & Dropdown ────────────────────────────
+async function loadTeacherList(){
+  const tbody=$('teacherListBody'); if(!tbody) return;
+  tbody.innerHTML='<tr><td colspan="4" class="loading">Loading...</td></tr>';
+  try{
+    const snap=await getDocs(collection(db,'users'));
+    allTeachers=[];
+    snap.forEach(d=>{ const t={id:d.id,...d.data()}; if(t.role==='teacher') allTeachers.push(t); });
+    tbody.innerHTML='';
+    if(!allTeachers.length){ tbody.innerHTML='<tr><td colspan="4" class="loading">No teachers found</td></tr>'; return; }
+    allTeachers.forEach(t=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${t.name}</td><td>${t.teacherId||'—'}</td><td>${t.email||'—'}</td><td><span class="badge b-green">Teacher</span></td>`; tbody.appendChild(tr); });
+  }catch(e){ tbody.innerHTML=`<tr><td colspan="4" style="color:var(--red);text-align:center;">Error: ${e.message}</td></tr>`; }
+}
+
+async function loadTeacherDropdown(){
+  const sel=$('mTeacher'); if(!sel) return;
+  try{
+    const snap=await getDocs(collection(db,'users'));
+    sel.innerHTML='<option value="">-- Select Teacher --</option>';
+    snap.forEach(d=>{ const t=d.data(); if(t.role==='teacher'){ const opt=document.createElement('option'); opt.value=d.id; opt.textContent=`${t.name} (${t.teacherId||d.id.slice(0,6)})`; opt.dataset.name=t.name; opt.dataset.tid=t.teacherId||d.id.slice(0,6).toUpperCase(); sel.appendChild(opt); } });
+  }catch(e){ console.error(e); }
+}
+
+// ── ADMIN: Mark Attendance ────────────────────────────────────
+window.adminMarkAttendance=async()=>{
+  const sel=$('mTeacher'), dateVal=$('mDate').value, status=$('mStatus').value;
+  const reason=$('mReason').value.trim(), ciVal=$('mCheckIn').value, coVal=$('mCheckOut').value;
+  $('markErr').textContent='';
+  if(!sel.value||!dateVal||!status){ $('markErr').textContent='Select teacher, date and status.'; return; }
+  const opt=sel.options[sel.selectedIndex];
+  const docId=`${sel.value}_${dateVal}`;
+  try{
+    await setDoc(doc(db,'attendance',docId),{
+      uid:sel.value, teacherId:opt.dataset.tid||sel.value.slice(0,8).toUpperCase(),
+      name:opt.dataset.name||'Unknown', date:dateVal,
+      checkIn:ciVal?timeStrToTimestamp(dateVal,ciVal):Timestamp.now(),
+      checkOut:coVal?timeStrToTimestamp(dateVal,coVal):null,
+      status, leaveReason:reason
+    });
+    alert('✅ Attendance saved!');
+    clearMarkForm(); loadAdminReport(); loadCharts();
+  }catch(e){ $('markErr').textContent='Error: '+e.message; }
+};
+window.clearMarkForm=()=>{
+  $('mTeacher').value=''; $('mDate').value=todayStr(); $('mCheckIn').value='';
+  $('mCheckOut').value=''; $('mStatus').value='present'; $('mReason').value='';
 };
 
-window.exportCSV = () => {
+// Pre-fill today in mark form
+setTimeout(()=>{ const md=$('mDate'); if(md) md.value=todayStr(); }, 300);
+
+// ── ADMIN: Search to Edit ─────────────────────────────────────
+window.searchRecords=async()=>{
+  const dateVal=$('editSearchDate').value;
+  const tbody=$('editBody'); if(!tbody) return;
+  if(!dateVal){ tbody.innerHTML='<tr><td colspan="7" class="loading">Select a date</td></tr>'; return; }
+  tbody.innerHTML='<tr><td colspan="7" class="loading">Loading...</td></tr>';
+  try{
+    const q=query(collection(db,'attendance'),where('date','==',dateVal));
+    const snap=await getDocs(q); const rows=[];
+    snap.forEach(d=>rows.push({id:d.id,...d.data()}));
+    tbody.innerHTML='';
+    if(!rows.length){ tbody.innerHTML='<tr><td colspan="7" class="loading">No records for this date</td></tr>'; return; }
+    rows.forEach(r=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td>${r.name||'—'}</td><td>${r.teacherId||'—'}</td>
+        <td>${fmtTime(r.checkIn)}</td><td>${fmtTime(r.checkOut)}</td>
+        <td><span class="badge ${badgeCls(r.status)}">${(r.status||'').replace('_',' ')}</span></td>
+        <td>${r.leaveReason||'—'}</td>
+        <td><button class="action-btn" onclick="window._openEditModal('${r.id}')">✏️ Edit</button></td>`;
+      tbody.appendChild(tr);
+    });
+  }catch(e){ tbody.innerHTML=`<tr><td colspan="7" style="color:var(--red);">Error: ${e.message}</td></tr>`; }
+};
+
+// ── ADMIN: Edit Modal ─────────────────────────────────────────
+window._openEditModal=async docId=>{
+  try{
+    const snap=await getDoc(doc(db,'attendance',docId));
+    if(!snap.exists()){ alert('Record not found.'); return; }
+    const r=snap.data();
+    $('editDocId').value=docId;
+    $('editName').value=r.name||'';
+    $('editDate').value=fmtDate(r.date);
+    $('editCheckIn').value=tsToTimeStr(r.checkIn);
+    $('editCheckOut').value=tsToTimeStr(r.checkOut);
+    $('editStatus').value=r.status||'present';
+    $('editReason').value=r.leaveReason||'';
+    $('editErr').textContent='';
+    $('editModal').classList.add('open');
+  }catch(e){ alert('Error: '+e.message); }
+};
+window.closeModal=()=>{ $('editModal').classList.remove('open'); };
+
+window.saveEditRecord=async()=>{
+  const docId=$('editDocId').value;
+  const status=$('editStatus').value, reason=$('editReason').value.trim();
+  const ciStr=$('editCheckIn').value, coStr=$('editCheckOut').value;
+  $('editErr').textContent='';
+  // extract date from docId: uid_YYYY-MM-DD
+  const parts=docId.split('_'); const dateStr=parts[parts.length-1];
+  try{
+    await updateDoc(doc(db,'attendance',docId),{
+      status, leaveReason:reason,
+      checkIn:ciStr?timeStrToTimestamp(dateStr,ciStr):null,
+      checkOut:coStr?timeStrToTimestamp(dateStr,coStr):null
+    });
+    alert('✅ Record updated!');
+    closeModal(); loadAdminReport(); searchRecords(); loadCharts();
+  }catch(e){ $('editErr').textContent='Error: '+e.message; }
+};
+
+window._deleteRecord=async docId=>{
+  if(!confirm('Delete this attendance record?')) return;
+  try{ await deleteDoc(doc(db,'attendance',docId)); alert('🗑 Deleted.'); loadAdminReport(); loadCharts(); }
+  catch(e){ alert('Error: '+e.message); }
+};
+
+// ── ADMIN: Add Teacher ────────────────────────────────────────
+window.addTeacher=async()=>{
+  const name=$('nName').value.trim(), tid=$('nTID').value.trim(), uid=$('nUID').value.trim(), email=$('nEmail').value.trim();
+  $('teacherErr').textContent='';
+  if(!name||!tid||!uid||!email){ $('teacherErr').textContent='All fields required.'; return; }
+  try{
+    await setDoc(doc(db,'users',uid),{ name,teacherId:tid,email,role:'teacher' });
+    alert(`✅ Teacher "${name}" registered!`);
+    $('nName').value=$('nTID').value=$('nUID').value=$('nEmail').value='';
+    loadTeacherList(); loadTeacherDropdown();
+  }catch(e){ $('teacherErr').textContent='Error: '+e.message; }
+};
+
+// ── CHARTS ────────────────────────────────────────────────────
+async function loadCharts(){
+  const filter=$('cFilter')?$('cFilter').value:'monthly';
+  const {start,end}=getDateRange(filter);
+  try{
+    const q=query(collection(db,'attendance'),where('date','>=',start),where('date','<=',end),orderBy('date','asc'));
+    const snap=await getDocs(q); const rows=[]; snap.forEach(d=>rows.push(d.data()));
+    drawPie(rows); drawLine(rows,start,end); drawBar(rows); drawAbsBar(rows);
+  }catch(e){ console.error('Chart error:',e); }
+}
+window.loadCharts=loadCharts;
+
+function destroyChart(c){ if(c){ try{ c.destroy(); }catch(e){} } }
+
+function drawPie(rows){
+  destroyChart(chartPie);
+  const cnt={present:0,absent:0,leave:0,short_leave:0};
+  rows.forEach(r=>{ if(cnt[r.status]!==undefined) cnt[r.status]++; });
+  const ctx=$('chartPie'); if(!ctx) return;
+  chartPie=new Chart(ctx,{
+    type:'doughnut',
+    data:{ labels:['Present','Absent','Leave','Short Leave'],
+      datasets:[{ data:[cnt.present,cnt.absent,cnt.leave,cnt.short_leave],
+        backgroundColor:['rgba(34,197,94,.7)','rgba(239,68,68,.7)','rgba(234,179,8,.7)','rgba(249,115,22,.7)'],
+        borderColor:['#22c55e','#ef4444','#eab308','#f97316'], borderWidth:2 }]},
+    options:{ plugins:{ legend:{ labels:{ color:'#94a3b8', font:{size:11} } } }, cutout:'60%' }
+  });
+}
+
+function drawLine(rows,start,end){
+  destroyChart(chartLine);
+  // build day-by-day present count
+  const dayMap={};
+  const s=new Date(start+'T00:00:00'), e=new Date(end+'T00:00:00');
+  for(let d=new Date(s);d<=e;d.setDate(d.getDate()+1)){
+    const k=fmt(d); dayMap[k]={present:0,absent:0};
+  }
+  rows.forEach(r=>{ if(dayMap[r.date]){ if(r.status==='present') dayMap[r.date].present++; else dayMap[r.date].absent++; } });
+  const labels=Object.keys(dayMap).map(k=>{ const d=new Date(k+'T00:00:00'); return d.toLocaleDateString('en-US',{month:'short',day:'numeric'}); });
+  const ctx=$('chartLine'); if(!ctx) return;
+  chartLine=new Chart(ctx,{
+    type:'line',
+    data:{ labels,
+      datasets:[
+        { label:'Present', data:Object.values(dayMap).map(v=>v.present), borderColor:'#22c55e', backgroundColor:'rgba(34,197,94,.1)', tension:.4, fill:true, pointRadius:3 },
+        { label:'Absent/Leave', data:Object.values(dayMap).map(v=>v.absent), borderColor:'#ef4444', backgroundColor:'rgba(239,68,68,.08)', tension:.4, fill:true, pointRadius:3 }
+      ]},
+    options:{ plugins:{ legend:{ labels:{ color:'#94a3b8', font:{size:11} } } }, scales:{ x:{ ticks:{ color:'#64748b', font:{size:10} }, grid:{ color:'rgba(255,255,255,.04)' } }, y:{ ticks:{ color:'#64748b' }, grid:{ color:'rgba(255,255,255,.04)' }, beginAtZero:true } } }
+  });
+}
+
+function drawBar(rows){
+  destroyChart(chartBar);
+  const map={};
+  rows.forEach(r=>{ if(!map[r.name]) map[r.name]={present:0,absent:0,leave:0,short_leave:0}; if(map[r.name][r.status]!==undefined) map[r.name][r.status]++; });
+  const labels=Object.keys(map);
+  const ctx=$('chartBar'); if(!ctx) return;
+  chartBar=new Chart(ctx,{
+    type:'bar',
+    data:{ labels,
+      datasets:[
+        { label:'Present', data:labels.map(l=>map[l].present), backgroundColor:'rgba(34,197,94,.65)', borderRadius:4 },
+        { label:'Absent', data:labels.map(l=>map[l].absent), backgroundColor:'rgba(239,68,68,.65)', borderRadius:4 },
+        { label:'Leave', data:labels.map(l=>map[l].leave), backgroundColor:'rgba(234,179,8,.65)', borderRadius:4 },
+        { label:'Short Leave', data:labels.map(l=>map[l].short_leave), backgroundColor:'rgba(249,115,22,.65)', borderRadius:4 }
+      ]},
+    options:{ plugins:{ legend:{ labels:{ color:'#94a3b8', font:{size:10} } } }, scales:{ x:{ stacked:false, ticks:{ color:'#64748b', font:{size:10} }, grid:{ color:'rgba(255,255,255,.03)' } }, y:{ beginAtZero:true, ticks:{ color:'#64748b' }, grid:{ color:'rgba(255,255,255,.04)' } } } }
+  });
+}
+
+function drawAbsBar(rows){
+  destroyChart(chartAbsBar);
+  const map={};
+  rows.forEach(r=>{ if(!map[r.name]) map[r.name]={total:0,abs:0}; map[r.name].total++; if(r.status==='absent'||r.status==='leave'||r.status==='short_leave') map[r.name].abs++; });
+  const labels=Object.keys(map);
+  const rates=labels.map(l=>map[l].total?+((map[l].abs/map[l].total)*100).toFixed(1):0);
+  const ctx=$('chartAbsBar'); if(!ctx) return;
+  chartAbsBar=new Chart(ctx,{
+    type:'bar',
+    data:{ labels,
+      datasets:[{ label:'Absence Rate %', data:rates,
+        backgroundColor:rates.map(r=>r>50?'rgba(239,68,68,.7)':r>25?'rgba(249,115,22,.7)':'rgba(59,130,246,.7)'),
+        borderRadius:5 }]},
+    options:{ plugins:{ legend:{ labels:{ color:'#94a3b8', font:{size:11} } } }, scales:{ x:{ ticks:{ color:'#64748b', font:{size:10} }, grid:{ color:'rgba(255,255,255,.03)' } }, y:{ beginAtZero:true, max:100, ticks:{ color:'#64748b', callback:v=>v+'%' }, grid:{ color:'rgba(255,255,255,.04)' } } } }
+  });
+}
+
+// ── Export CSV ────────────────────────────────────────────────
+window.exportCSV=()=>{
   const rows=[['Name','Teacher ID','Date','Check In','Check Out','Status','Reason']];
   $('aReportBody').querySelectorAll('tr').forEach(tr=>{
-    const cells=[...tr.querySelectorAll('td')].map(td=>td.innerText.replace(/,/g,' '));
-    if(cells.length) rows.push(cells);
+    const cells=[...tr.querySelectorAll('td')].slice(0,7).map(td=>td.innerText.replace(/,/g,' '));
+    if(cells.length===7) rows.push(cells);
   });
   const csv=rows.map(r=>r.join(',')).join('\n');
-  const a=document.createElement('a');
-  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
-  a.download=`attendance_${$('aFilter').value}_${todayStr()}.csv`;
-  a.click();
+  const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download=`attendance_${todayStr()}.csv`; a.click();
 };
 
-// ─── Admin Tab Switcher ─────────────────────────────────────
-window.adminTab = (tabId, el) => {
+// ── Admin Tab ─────────────────────────────────────────────────
+window.adminTab=(tabId,el)=>{
   document.querySelectorAll('.tabs .tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
   document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
   $(tabId).classList.add('active');
+  if(tabId==='tabCharts') loadCharts();
+  if(tabId==='tabManage') loadTeacherList();
 };
 </script>
 </body>
