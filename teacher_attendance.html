@@ -703,10 +703,19 @@ async function loadTeacherReport(){
   const tbody=$('tReportBody'); if(!tbody) return;
   tbody.innerHTML='<tr><td colspan="8" class="loading">Loading...</td></tr>';
   try{
-    const q=query(collection(db,'attendance'),where('uid','==',currentUser.uid),where('date','>=',start),where('date','<=',end),orderBy('date','desc'));
-    const snap=await getDocs(q); const rows=[]; snap.forEach(d=>rows.push(d.data()));
+    // Direct doc ID reads — no index needed at all
+    const rows=[];
+    const s=new Date(start+'T00:00:00'), e=new Date(end+'T00:00:00');
+    const fetches=[];
+    for(let d=new Date(s); d<=e; d.setDate(d.getDate()+1)){
+      const dateStr=fmt(d);
+      const docId=`${currentUser.uid}_${dateStr}`;
+      fetches.push(getDoc(doc(db,'attendance',docId)).then(snap=>{ if(snap.exists()) rows.push(snap.data()); }));
+    }
+    await Promise.all(fetches);
+    rows.sort((a,b)=>b.date.localeCompare(a.date)); // newest first
     tbody.innerHTML='';
-    if(!rows.length){ tbody.innerHTML='<tr><td colspan="8" class="loading">No records</td></tr>'; return; }
+    if(!rows.length){ tbody.innerHTML='<tr><td colspan="8" class="loading">No records found</td></tr>'; return; }
     rows.forEach(r=>{
       const late=r.lateMinutes||lateMinutes(r.checkIn), early=r.earlyMinutes||earlyMinutes(r.checkOut);
       const tr=document.createElement('tr');
@@ -723,25 +732,32 @@ async function loadTeacherReport(){
 window.loadTeacherReport=loadTeacherReport;
 
 async function loadTeacherCharts(){
-  const filter=$('tcFilter')?$('tcFilter').value:'monthly', {start,end}=getDateRange(filter);
+  const filter=$('tcFilter')?$('tcFilter').value:'monthly';
+  const {start,end}=getDateRange(filter);
   try{
-    // Fetch ALL attendance for this uid, then filter in JS — avoids composite index requirement
-    const q=query(collection(db,'attendance'),where('uid','==',currentUser.uid));
-    const snap=await getDocs(q);
+    // Build doc IDs directly: uid_YYYY-MM-DD for every school day in range
+    // No query needed — direct document reads, zero index requirement
     const rows=[];
-    snap.forEach(d=>{
-      const r=d.data();
-      if(r.date>=start && r.date<=end) rows.push(r);
-    });
+    const s=new Date(start+'T00:00:00'), e=new Date(end+'T00:00:00');
+    const fetches=[];
+    for(let d=new Date(s); d<=e; d.setDate(d.getDate()+1)){
+      if(OFF_DAYS.includes(d.getDay())) continue;
+      const dateStr=fmt(d);
+      const docId=`${currentUser.uid}_${dateStr}`;
+      fetches.push(getDoc(doc(db,'attendance',docId)).then(snap=>{ if(snap.exists()) rows.push(snap.data()); }));
+    }
+    await Promise.all(fetches);
     rows.sort((a,b)=>a.date.localeCompare(b.date));
+
+    const canvases=['tcPie','tcLine','tcPunct','tcWeek'];
     if(!rows.length){
-      // Show "no data" message on each canvas
-      ['tcPie','tcLine','tcPunct','tcWeek'].forEach(id=>{
+      canvases.forEach(id=>{
         const canvas=$(id); if(!canvas) return;
+        destroyChart({canvas}); // clear any old chart
         const ctx=canvas.getContext('2d');
         ctx.clearRect(0,0,canvas.width,canvas.height);
-        ctx.fillStyle='#94a3b8'; ctx.font='14px Segoe UI'; ctx.textAlign='center';
-        ctx.fillText('No attendance data yet',canvas.width/2,80);
+        ctx.fillStyle='#94a3b8'; ctx.font='13px Segoe UI'; ctx.textAlign='center';
+        ctx.fillText('No data for this period',canvas.offsetWidth/2||120, canvas.offsetHeight/2||80);
       });
       return;
     }
@@ -753,7 +769,7 @@ async function loadTeacherCharts(){
       const ctx=canvas.getContext('2d');
       ctx.clearRect(0,0,canvas.width,canvas.height);
       ctx.fillStyle='#ef4444'; ctx.font='12px Segoe UI'; ctx.textAlign='center';
-      ctx.fillText('Error: '+e.message,canvas.width/2,80);
+      ctx.fillText('Error loading data',canvas.offsetWidth/2||120,80);
     });
   }
 }
