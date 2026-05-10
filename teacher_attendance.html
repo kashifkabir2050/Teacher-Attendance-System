@@ -725,10 +725,37 @@ window.loadTeacherReport=loadTeacherReport;
 async function loadTeacherCharts(){
   const filter=$('tcFilter')?$('tcFilter').value:'monthly', {start,end}=getDateRange(filter);
   try{
-    const q=query(collection(db,'attendance'),where('uid','==',currentUser.uid),where('date','>=',start),where('date','<=',end),orderBy('date','asc'));
-    const snap=await getDocs(q); const rows=[]; snap.forEach(d=>rows.push(d.data()));
+    // Fetch ALL attendance for this uid, then filter in JS — avoids composite index requirement
+    const q=query(collection(db,'attendance'),where('uid','==',currentUser.uid));
+    const snap=await getDocs(q);
+    const rows=[];
+    snap.forEach(d=>{
+      const r=d.data();
+      if(r.date>=start && r.date<=end) rows.push(r);
+    });
+    rows.sort((a,b)=>a.date.localeCompare(b.date));
+    if(!rows.length){
+      // Show "no data" message on each canvas
+      ['tcPie','tcLine','tcPunct','tcWeek'].forEach(id=>{
+        const canvas=$(id); if(!canvas) return;
+        const ctx=canvas.getContext('2d');
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.fillStyle='#94a3b8'; ctx.font='14px Segoe UI'; ctx.textAlign='center';
+        ctx.fillText('No attendance data yet',canvas.width/2,80);
+      });
+      return;
+    }
     drawTcPie(rows); drawTcLine(rows,start,end); drawTcPunct(rows); drawTcWeek(rows);
-  }catch(e){ console.error(e); }
+  }catch(e){
+    console.error('Teacher chart error:',e);
+    ['tcPie','tcLine','tcPunct','tcWeek'].forEach(id=>{
+      const canvas=$(id); if(!canvas) return;
+      const ctx=canvas.getContext('2d');
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle='#ef4444'; ctx.font='12px Segoe UI'; ctx.textAlign='center';
+      ctx.fillText('Error: '+e.message,canvas.width/2,80);
+    });
+  }
 }
 window.loadTeacherCharts=loadTeacherCharts;
 
@@ -1005,7 +1032,7 @@ window.teacherTab=(tabId,el)=>{
   document.querySelectorAll('#teacherPage .tab-content').forEach(c=>c.classList.remove('active'));
   $(tabId).classList.add('active');
   if(tabId==='tTabReport') loadTeacherReport();
-  if(tabId==='tTabCharts') loadTeacherCharts();
+  if(tabId==='tTabCharts'){ setTimeout(loadTeacherCharts, 100); }
 };
 </script>
 </body>
