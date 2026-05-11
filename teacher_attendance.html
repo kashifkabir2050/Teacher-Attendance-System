@@ -601,7 +601,31 @@ function initTeacherDashboard(data){
   if(clockInterval) clearInterval(clockInterval);
   const tick=()=>{ if($('tClock')) $('tClock').textContent=new Date().toLocaleTimeString('en-US'); };
   tick(); clockInterval=setInterval(tick,1000);
+  await checkAutoAbsent();   // auto-absent if past 8 AM and no record
   renderAttendanceBox(); loadTeacherReport();
+}
+
+// ── Auto-absent: if past 8:00 AM and no record, mark absent ──
+async function checkAutoAbsent(){
+  const today=todayStr();
+  if(isOffDay(today)) return;           // skip weekends
+  if(nowMin() < 8*60) return;           // before 8:00 AM — don't mark yet
+  const docId=`${currentUser.uid}_${today}`;
+  try{
+    const snap=await getDoc(doc(db,'attendance',docId));
+    if(!snap.exists()){
+      await setDoc(doc(db,'attendance',docId),{
+        uid: currentUser.uid,
+        teacherId: currentTeacher.teacherId||currentUser.uid.slice(0,8).toUpperCase(),
+        name: currentTeacher.name,
+        date: today,
+        checkIn: null, checkOut: null,
+        status: 'absent', leaveReason: 'Auto-marked absent (no check-in by 8:00 AM)',
+        lateMinutes: 0, earlyMinutes: 0, markedBy:'system'
+      },{merge:false});
+      console.log('Auto-marked absent for today');
+    }
+  }catch(e){ console.warn('Auto-absent failed:',e.message); }
 }
 
 async function renderAttendanceBox(){
@@ -665,12 +689,29 @@ async function renderAttendanceBox(){
 window._openLeave=type=>{ const f=$('leaveForm'); if(!f) return; f.style.display='block'; $('leaveTypeSel').value=type; $('leaveFTitle').textContent=type==='short_leave'?'Short Leave':'Leave Request'; };
 window._submitCheckin=async st=>{
   const n=nowMin(); let status=st; if(st==='present'&&n>CI_LATE) status='late';
-  const docId=`${currentUser.uid}_${todayStr()}`, lateMin=n>CI_LATE?n-CI_LATE:0;
+  const today=todayStr(), docId=`${currentUser.uid}_${today}`, lateMin=n>CI_LATE?n-CI_LATE:0;
   try{
-    await setDoc(doc(db,'attendance',docId),{ uid:currentUser.uid, teacherId:currentTeacher.teacherId||currentUser.uid.slice(0,8).toUpperCase(), name:currentTeacher.name, date:todayStr(), checkIn:Timestamp.now(), checkOut:null, status, leaveReason:'', lateMinutes:lateMin, earlyMinutes:0 });
+    await setDoc(doc(db,'attendance',docId),{
+      uid: currentUser.uid,
+      teacherId: currentTeacher.teacherId||currentUser.uid.slice(0,8).toUpperCase(),
+      name: currentTeacher.name,
+      date: today,
+      checkIn: Timestamp.now(),
+      checkOut: null,
+      status, leaveReason:'', lateMinutes:lateMin, earlyMinutes:0,
+      markedBy: 'teacher'
+    },{merge:true});
     alert(`✅ Marked: ${status.replace('_',' ')}${lateMin>0?' (Late by '+fmtDiff(lateMin)+')':''}`);
     renderAttendanceBox(); loadTeacherReport();
-  }catch(e){ alert('Error: '+e.message); }
+  }catch(e){
+    console.error('Check-in error:',e);
+    if(e.code==='permission-denied'||e.message.includes('permission')||e.message.includes('Missing')){
+      alert('❌ Permission Error!\n\nPlease update your Firestore Rules:\n\nGo to Firebase Console → Firestore → Rules\nand paste the rules shown in the console log.');
+      console.warn(`%cFIRESTORE RULES TO PASTE:\n\nrules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /users/{uid} {\n      allow read: if request.auth != null;\n      allow write: if request.auth != null && (\n        request.auth.uid == uid ||\n        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'\n      );\n    }\n    match /attendance/{docId} {\n      allow read: if request.auth != null;\n      allow write: if request.auth != null;\n    }\n  }\n}`,'color:orange;font-size:14px');
+    } else {
+      alert('Error: '+e.message);
+    }
+  }
 };
 window._submitLeave=async()=>{
   const type=$('leaveTypeSel').value, reason=$('leaveReasonInp').value.trim();
