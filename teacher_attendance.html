@@ -601,8 +601,8 @@ function initTeacherDashboard(data){
   if(clockInterval) clearInterval(clockInterval);
   const tick=()=>{ if($('tClock')) $('tClock').textContent=new Date().toLocaleTimeString('en-US'); };
   tick(); clockInterval=setInterval(tick,1000);
-  await checkAutoAbsent();   // auto-absent if past 8 AM and no record
-  renderAttendanceBox(); loadTeacherReport();
+  checkAutoAbsent().then(()=>renderAttendanceBox());
+  loadTeacherReport();
 }
 
 // ── Auto-absent: if past 8:00 AM and no record, mark absent ──
