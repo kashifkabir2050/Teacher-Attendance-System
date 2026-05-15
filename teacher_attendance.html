@@ -119,6 +119,33 @@ tbody tr:hover{background:rgba(255,255,255,.025);}
 .pw-toggle{position:absolute;right:12px;top:50%;transform:translateY(-60%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:.9rem;padding:0;}
 .section-divider{border:none;border-top:1px solid var(--border);margin:18px 0;}
 </style>
+<!-- Bridge: expose module functions to inline onclick handlers.
+     The module sets window.doLogin etc., but if the module hasn't
+     finished loading when the user clicks, this queues the call. -->
+<script>
+  function doLogin(){
+    if(typeof window._doLogin==='function') return window._doLogin();
+    // Module not ready yet — wait up to 5 s then retry
+    const btn=document.querySelector('[onclick="doLogin()"]');
+    if(btn){ btn.disabled=true; btn.textContent='Loading…'; }
+    let tries=0;
+    const iv=setInterval(()=>{
+      tries++;
+      if(typeof window._doLogin==='function'){
+        clearInterval(iv);
+        if(btn){ btn.disabled=false; btn.textContent='🔐 Login'; }
+        window._doLogin();
+      } else if(tries>50){
+        clearInterval(iv);
+        if(btn){ btn.disabled=false; btn.textContent='🔐 Login'; }
+        document.getElementById('loginErr').textContent='App failed to load. Please refresh.';
+      }
+    },100);
+  }
+  function doLogout(){
+    if(typeof window._doLogout==='function') window._doLogout();
+  }
+</script>
 </head>
 <body>
 <nav>
@@ -615,7 +642,7 @@ onAuthStateChanged(auth, async user=>{
   }
 });
 
-window.doLogin=async()=>{
+window._doLogin=async()=>{
   const email=$('loginEmail').value.trim(), pass=$('loginPass').value.trim();
   $('loginErr').textContent='';
   if(!email||!pass){ $('loginErr').textContent='Enter email and password.'; return; }
@@ -625,7 +652,7 @@ window.doLogin=async()=>{
     adminEmail=email; adminPass=pass;
   }catch(e){ $('loginErr').textContent='Login failed: '+e.message; }
 };
-window.doLogout=async()=>{ await signOut(auth); };
+window._doLogout=async()=>{ await signOut(auth); };
 
 // ── TEACHER DASHBOARD ─────────────────────────────────────
 function initTeacherDashboard(data){
