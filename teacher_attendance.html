@@ -1351,7 +1351,7 @@ window.previewExcelImport=file=>{
     const tbody=$('importPreviewBody'); if(!tbody) return;
     tbody.innerHTML='';
     rows.forEach((r,i)=>{
-      const name=(r['Name']||'').trim(), tid=(r['TeacherID']||'').trim(), email=(r['Email']||'').trim(), pass=(r['Password']||'').trim();
+      const name=String(r['Name']??'').trim(), tid=String(r['TeacherID']??'').trim(), email=String(r['Email']??'').trim(), pass=String(r['Password']??'').trim();
       const valid=name&&tid&&email&&pass&&pass.length>=6&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
       const tr=document.createElement('tr');
       tr.innerHTML=`<td>${name||'<span style="color:var(--red)">Missing</span>'}</td><td>${tid||'<span style="color:var(--red)">Missing</span>'}</td><td>${email||'<span style="color:var(--red)">Missing</span>'}</td><td>${pass?'••••••••':'<span style="color:var(--red)">Missing</span>'}</td><td>${r['Subject']||'—'}</td><td>${r['Phone']||'—'}</td><td><span class="badge ${valid?'b-green':'b-red'}">${valid?'✅ Ready':'❌ Invalid'}</span></td>`;
@@ -1371,9 +1371,9 @@ window.runBulkImport=async()=>{
   const total=_importData.length;
   for(let i=0;i<total;i++){
     const r=_importData[i];
-    const name=(r['Name']||'').trim(), tid=(r['TeacherID']||'').trim();
-    const email=(r['Email']||'').trim(), pass=(r['Password']||'').trim();
-    const subject=(r['Subject']||'').trim(), phone=(r['Phone']||'').trim();
+    const name=String(r['Name']??'').trim(), tid=String(r['TeacherID']??'').trim();
+    const email=String(r['Email']??'').trim(), pass=String(r['Password']??'').trim();
+    const subject=String(r['Subject']??'').trim(), phone=String(r['Phone']??'').trim();
     prog.innerHTML=`⏳ Processing ${i+1}/${total}: ${name}...`;
     if(!name||!tid||!email||!pass||pass.length<6||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ failed++; errors.push(`Row ${i+2}: ${name||'Unknown'} — invalid data`); continue; }
     try{
