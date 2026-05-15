@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Teacher Attendance System</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{
   --bg:#0f172a;--card:#1e293b;--card2:#273449;--border:#334155;
@@ -162,7 +165,7 @@ tbody tr:hover{background:rgba(255,255,255,.025);}
       <div style="font-size:.78rem;color:var(--muted);margin-bottom:12px;line-height:1.8;">
         🏫 School: <strong style="color:var(--text);">7:00 AM – 2:30 PM</strong> &nbsp;|&nbsp;
         ✅ Check-In opens: <strong style="color:var(--green);">6:50 AM</strong> &nbsp;|&nbsp;
-        ⚠️ Late after: <strong style="color:var(--orange);">7:05 AM</strong> &nbsp;|&nbsp;
+        ⚠️ Late after: <strong style="color:var(--orange);">7:00 AM</strong> &nbsp;|&nbsp;
         🏁 Check-Out from: <strong style="color:var(--blue);">2:30 PM</strong>
       </div>
       <div id="tActionBox"><div class="loading">Loading...</div></div>
@@ -178,6 +181,8 @@ tbody tr:hover{background:rgba(255,255,255,.025);}
           <option value="weekly">This Week</option>
           <option value="monthly">This Month</option>
         </select>
+        <button class="btn btn-purple" onclick="exportTeacherPDF('daily')">📄 PDF Today</button>
+        <button class="btn btn-orange" onclick="exportTeacherPDF('monthly')">📄 PDF Monthly</button>
       </div>
       <div class="tbl-wrap">
         <table>
@@ -238,6 +243,9 @@ tbody tr:hover{background:rgba(255,255,255,.025);}
         <label>To:</label>
         <input type="date" id="aTo" onchange="loadAdminReport()" style="width:auto;margin:0;"/>
         <button class="btn btn-green" onclick="exportCSV()">⬇ CSV</button>
+        <button class="btn btn-purple" onclick="exportAdminPDFDaily()">📄 PDF Daily</button>
+        <button class="btn btn-orange" onclick="exportAdminPDFMonthly()">📄 PDF Monthly</button>
+        <button class="btn btn-blue" onclick="exportFullStaffMonthlyPDF()">📊 Full Staff PDF</button>
       </div>
       <div class="tbl-wrap">
         <table>
@@ -312,6 +320,34 @@ tbody tr:hover{background:rgba(255,255,255,.025);}
 
   <!-- TAB: Teachers -->
   <div id="tabManage" class="tab-content">
+    <div class="card">
+      <h2>📥 Bulk Import Teachers via Excel</h2>
+      <p style="color:var(--muted);font-size:.82rem;margin-bottom:12px;">
+        Download the template, fill in teacher data, then upload to auto-create all accounts.<br/>
+        <strong style="color:var(--text);">Required columns:</strong> Name, TeacherID, Email, Password, Subject, Phone
+      </p>
+      <div class="btn-group" style="margin-bottom:14px;">
+        <button class="btn btn-gray" onclick="downloadImportTemplate()">⬇ Download Template</button>
+        <label class="btn btn-accent" style="cursor:pointer;width:auto;">
+          📂 Choose Excel File
+          <input type="file" id="excelImportFile" accept=".xlsx,.xls" style="display:none;" onchange="previewExcelImport(this)"/>
+        </label>
+      </div>
+      <div id="importPreviewArea" style="display:none;">
+        <div class="tbl-wrap" style="margin-bottom:12px;">
+          <table>
+            <thead><tr><th>Name</th><th>Teacher ID</th><th>Email</th><th>Password</th><th>Subject</th><th>Phone</th><th>Status</th></tr></thead>
+            <tbody id="importPreviewBody"></tbody>
+          </table>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-green" id="importRunBtn" onclick="runBulkImport()">✅ Import All Teachers</button>
+          <button class="btn btn-gray" onclick="cancelImport()">✖ Cancel</button>
+        </div>
+        <div id="importProgress" style="margin-top:10px;font-size:.85rem;color:var(--muted);"></div>
+      </div>
+    </div>
+
     <div class="card">
       <h2>➕ Add New Teacher Account</h2>
       <p style="color:var(--muted);font-size:.82rem;margin-bottom:16px;">
@@ -497,7 +533,7 @@ let clockInterval=null;
 let tcPie=null,tcLine=null,tcPunct=null,tcWeek=null;
 let chartPie=null,chartLine=null,chartBar=null,chartLateBar=null;
 
-const CI_OPEN=6*60+50, CI_LATE=7*60+5, CO_SCHOOL=14*60+30;
+const CI_OPEN=6*60+50, CI_LATE=7*60+0, CO_SCHOOL=14*60+30;
 const OFF_DAYS=[0,5,6];
 
 // ── Helpers ────────────────────────────────────────────────
@@ -668,10 +704,18 @@ async function renderAttendanceBox(){
   } else if(rec&&rec.checkIn&&!rec.checkOut){
     if(n>=CO_SCHOOL){
       box.innerHTML+=`<div class="alert alert-blue">⏰ Check-Out window is <strong>OPEN</strong></div>
-        <button class="btn btn-blue" onclick="window._submitCheckout()">🏁 Check Out Now</button>`;
+        <div class="btn-group">
+          <button class="btn btn-blue" onclick="window._submitCheckout()">🏁 Check Out Now</button>
+          <button class="btn btn-orange" onclick="window._openPostLeave('short_leave')">⏱ Apply Short Leave</button>
+          <button class="btn btn-yellow" onclick="window._openPostLeave('leave')">📋 Apply Leave</button>
+        </div>`;
     } else {
       box.innerHTML+=`<div class="alert alert-yellow">⏳ Check-Out at <strong>2:30 PM</strong> (${fmtDiff(CO_SCHOOL-n)} remaining)</div>
-        <button class="btn btn-purple" style="margin-top:8px;" onclick="window._submitCheckoutEarly()">⚠️ Early Check-Out</button>`;
+        <div class="btn-group" style="margin-top:8px;">
+          <button class="btn btn-purple" onclick="window._submitCheckoutEarly()">⚠️ Early Check-Out</button>
+          <button class="btn btn-orange" onclick="window._openPostLeave('short_leave')">⏱ Apply Short Leave</button>
+          <button class="btn btn-yellow" onclick="window._openPostLeave('leave')">📋 Apply Leave</button>
+        </div>`;
     }
   } else if(rec&&rec.checkOut){
     box.innerHTML+=`<div class="alert alert-green">✅ Attendance complete for today!</div>`;
@@ -683,7 +727,22 @@ async function renderAttendanceBox(){
     <div class="btn-group">
       <button class="btn btn-green" onclick="window._submitLeave()">Submit</button>
       <button class="btn btn-gray" onclick="document.getElementById('leaveForm').style.display='none'">Cancel</button>
-    </div></div>`;
+    </div></div>
+  <div id="postLeaveForm" style="display:none;" class="leave-form">
+    <h3 id="postLeaveFTitle" style="color:var(--orange);">Apply Leave After Check-In</h3>
+    <input type="hidden" id="postLeaveType"/>
+    <div id="postLeaveShortFields" style="display:none;">
+      <span class="inline-label">Short Leave Start Time</span>
+      <input type="time" id="postLeaveStartTime" style="margin-bottom:8px;"/>
+      <span class="inline-label">Short Leave End Time</span>
+      <input type="time" id="postLeaveEndTime" style="margin-bottom:8px;"/>
+    </div>
+    <input type="text" id="postLeaveReason" placeholder="Enter reason for leave..."/>
+    <div class="btn-group">
+      <button class="btn btn-green" onclick="window._submitPostLeave()">✅ Submit</button>
+      <button class="btn btn-gray" onclick="document.getElementById('postLeaveForm').style.display='none'">Cancel</button>
+    </div>
+  </div>`;
 }
 
 window._openLeave=type=>{ const f=$('leaveForm'); if(!f) return; f.style.display='block'; $('leaveTypeSel').value=type; $('leaveFTitle').textContent=type==='short_leave'?'Short Leave':'Leave Request'; };
@@ -738,7 +797,32 @@ window._submitCheckoutEarly=async()=>{
   }catch(e){ alert('Error: '+e.message); }
 };
 
-async function loadTeacherReport(){
+window._openPostLeave=type=>{
+  const f=$('postLeaveForm'); if(!f) return;
+  f.style.display='block';
+  $('postLeaveType').value=type;
+  $('postLeaveFTitle').textContent=type==='short_leave'?'⏱ Apply Short Leave':'📋 Apply Leave';
+  const shortFields=$('postLeaveShortFields');
+  if(shortFields) shortFields.style.display=type==='short_leave'?'block':'none';
+};
+
+window._submitPostLeave=async()=>{
+  const type=$('postLeaveType').value, reason=$('postLeaveReason').value.trim();
+  if(!reason){ alert('Please enter a reason.'); return; }
+  const today=todayStr(), docId=`${currentUser.uid}_${today}`;
+  const updateData={ status:type, leaveReason:reason, leaveAppliedAt:Timestamp.now() };
+  if(type==='short_leave'){
+    const st=$('postLeaveStartTime').value, et=$('postLeaveEndTime').value;
+    if(st) updateData.shortLeaveStart=timeStrToTimestamp(today,st);
+    if(et) updateData.shortLeaveEnd=timeStrToTimestamp(today,et);
+  }
+  try{
+    await updateDoc(doc(db,'attendance',docId), updateData);
+    alert(`✅ ${type==='short_leave'?'Short Leave':'Leave'} submitted and admin notified!`);
+    $('postLeaveForm').style.display='none';
+    renderAttendanceBox(); loadTeacherReport();
+  }catch(e){ alert('Error: '+e.message); }
+};
   const filter=$('tFilter')?$('tFilter').value:'daily';
   const {start,end}=getDateRange(filter);
   const tbody=$('tReportBody'); if(!tbody) return;
@@ -843,6 +927,7 @@ async function loadAdminReport(){
     rows.forEach(r=>{
       const late=r.lateMinutes||lateMinutes(r.checkIn), early=r.earlyMinutes||earlyMinutes(r.checkOut);
       const tr=document.createElement('tr');
+      const leaveMeta=r.shortLeaveStart?`<br/><span style="font-size:.72rem;color:var(--orange);">🕐 ${fmtTime(r.shortLeaveStart)}–${fmtTime(r.shortLeaveEnd)||'?'}</span>`:'';
       tr.innerHTML=`<td>${r.name||'—'}</td><td>${r.teacherId||'—'}</td><td>${fmtDate(r.date)}</td>
         <td style="font-size:.75rem;color:var(--muted);">${dayName(r.date)}</td>
         <td>${fmtTime(r.checkIn)}</td>
@@ -850,7 +935,7 @@ async function loadAdminReport(){
         <td>${fmtTime(r.checkOut)}</td>
         <td>${early>0?`<span class="early-tag">⚠️ ${fmtDiff(early)}</span>`:(r.checkOut?'<span style="color:var(--green);font-size:.75rem;">✅</span>':'—')}</td>
         <td><span class="badge ${badgeCls(r.status)}">${(r.status||'').replace('_',' ')}</span></td>
-        <td>${r.leaveReason||'—'}</td>
+        <td>${r.leaveReason||'—'}${leaveMeta}</td>
         <td style="display:flex;gap:5px;">
           <button class="action-btn" onclick="window._openEditModal('${r.id}')">✏️</button>
           <button class="action-btn del" onclick="window._deleteRecord('${r.id}')">🗑</button>
@@ -1073,6 +1158,210 @@ window.exportCSV=()=>{
   const csv=rows.map(r=>r.join(',')).join('\n');
   const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
   a.download=`attendance_${todayStr()}.csv`; a.click();
+};
+
+// ── PDF HELPERS ──────────────────────────────────────────────
+function buildPDF(title, subtitle, columns, rows, filename){
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'landscape',unit:'pt',format:'a4'});
+  const pw=doc.internal.pageSize.getWidth();
+  // Header bar
+  doc.setFillColor(15,23,42); doc.rect(0,0,pw,50,'F');
+  doc.setFontSize(16); doc.setTextColor(59,130,246); doc.setFont(undefined,'bold');
+  doc.text('📚 Teacher Attendance System',30,20);
+  doc.setFontSize(11); doc.setTextColor(226,232,240); doc.setFont(undefined,'normal');
+  doc.text(title,30,35);
+  doc.setFontSize(9); doc.setTextColor(148,163,184);
+  doc.text(`Generated: ${new Date().toLocaleString()}  |  ${subtitle}`,30,47);
+  doc.autoTable({
+    startY:58, head:[columns],
+    body:rows,
+    theme:'grid',
+    headStyles:{fillColor:[30,41,59],textColor:[148,163,184],fontSize:8,fontStyle:'bold'},
+    bodyStyles:{fillColor:[15,23,42],textColor:[226,232,240],fontSize:8},
+    alternateRowStyles:{fillColor:[39,52,73]},
+    margin:{left:20,right:20},
+    styles:{cellPadding:4}
+  });
+  // Footer
+  const pageCount=doc.internal.getNumberOfPages();
+  for(let i=1;i<=pageCount;i++){
+    doc.setPage(i); doc.setFontSize(8); doc.setTextColor(100,116,139);
+    doc.text(`Page ${i} of ${pageCount}`,pw-60,doc.internal.pageSize.getHeight()-10);
+  }
+  doc.save(filename);
+}
+
+// ── TEACHER: Individual PDF ───────────────────────────────
+window.exportTeacherPDF=async(period)=>{
+  if(!currentTeacher){ alert('Not logged in.'); return; }
+  const {start,end}=getDateRange(period);
+  const rows=[], s=new Date(start+'T00:00:00'), e=new Date(end+'T00:00:00');
+  const fetches=[];
+  for(let d=new Date(s);d<=e;d.setDate(d.getDate()+1)){
+    const dateStr=fmt(d), docId=`${currentUser.uid}_${dateStr}`;
+    fetches.push(getDoc(doc(db,'attendance',docId)).then(snap=>{ if(snap.exists()) rows.push(snap.data()); }));
+  }
+  await Promise.all(fetches);
+  rows.sort((a,b)=>a.date.localeCompare(b.date));
+  const cnt={present:0,absent:0,late:0,leave:0,short_leave:0,early_out:0};
+  const tableRows=rows.map(r=>{
+    if(cnt[r.status]!==undefined) cnt[r.status]++;
+    const late=r.lateMinutes||lateMinutes(r.checkIn), early=r.earlyMinutes||earlyMinutes(r.checkOut);
+    const slInfo=r.shortLeaveStart?` [${fmtTime(r.shortLeaveStart)}-${fmtTime(r.shortLeaveEnd)||'?'}]`:'';
+    return [fmtDate(r.date), dayName(r.date), fmtTime(r.checkIn), late>0?`Late ${fmtDiff(late)}`:'On Time', fmtTime(r.checkOut), early>0?`Early ${fmtDiff(early)}`:(r.checkOut?'Full Day':'—'), (r.status||'').replace('_',' ').toUpperCase(), (r.leaveReason||'—')+slInfo];
+  });
+  const summary=`P:${cnt.present} A:${cnt.absent} Late:${cnt.late} L:${cnt.leave} SL:${cnt.short_leave} Early:${cnt.early_out}`;
+  buildPDF(
+    `${period==='daily'?'Daily':'Monthly'} Report — ${currentTeacher.name} (${currentTeacher.teacherId||''})`,
+    `Period: ${fmtDate(start)} to ${fmtDate(end)}  |  ${summary}`,
+    ['Date','Day','Check In','Late','Check Out','Early','Status','Reason/Notes'],
+    tableRows,
+    `attendance_${currentTeacher.teacherId||'teacher'}_${period}_${start}.pdf`
+  );
+};
+
+// ── ADMIN: Individual teacher PDF (all teachers, one per page) ──
+window.exportAdminPDFDaily=async()=>{
+  const filterEl=$('aFilter'), fromEl=$('aFrom'), toEl=$('aTo');
+  let start,end;
+  if(fromEl&&fromEl.value&&toEl&&toEl.value){ start=fromEl.value; end=toEl.value; }
+  else{ const r=getDateRange(filterEl?filterEl.value:'daily'); start=r.start; end=r.end; }
+  await _exportAdminIndividualPDF(start,end,'daily');
+};
+
+window.exportAdminPDFMonthly=async()=>{
+  const r=getDateRange('monthly'); 
+  await _exportAdminIndividualPDF(r.start,r.end,'monthly');
+};
+
+async function _exportAdminIndividualPDF(start,end,label){
+  try{
+    const q=query(collection(db,'attendance'),where('date','>=',start),where('date','<=',end),orderBy('date','asc'));
+    const snap=await getDocs(q); const allRows=[];
+    snap.forEach(d=>allRows.push({id:d.id,...d.data()}));
+    if(!allRows.length){ alert('No records found for this period.'); return; }
+    // Group by teacher
+    const byTeacher={};
+    allRows.forEach(r=>{ if(!byTeacher[r.uid]) byTeacher[r.uid]={name:r.name,tid:r.teacherId,rows:[]}; byTeacher[r.uid].rows.push(r); });
+    const {jsPDF}=window.jspdf;
+    const doc=new jsPDF({orientation:'landscape',unit:'pt',format:'a4'});
+    const pw=doc.internal.pageSize.getWidth();
+    let firstPage=true;
+    Object.values(byTeacher).forEach(teacher=>{
+      if(!firstPage) doc.addPage();
+      firstPage=false;
+      const cnt={present:0,absent:0,late:0,leave:0,short_leave:0,early_out:0};
+      doc.setFillColor(15,23,42); doc.rect(0,0,pw,55,'F');
+      doc.setFontSize(15); doc.setTextColor(59,130,246); doc.setFont(undefined,'bold');
+      doc.text('📚 Teacher Attendance System',30,20);
+      doc.setFontSize(12); doc.setTextColor(226,232,240);
+      doc.text(`${label==='daily'?'Daily':'Monthly'} Report — ${teacher.name} (ID: ${teacher.tid||'—'})`,30,36);
+      doc.setFontSize(9); doc.setTextColor(148,163,184);
+      doc.text(`Period: ${fmtDate(start)} to ${fmtDate(end)}   |   Generated: ${new Date().toLocaleString()}`,30,50);
+      const tableRows=teacher.rows.map(r=>{
+        if(cnt[r.status]!==undefined) cnt[r.status]++;
+        const late=r.lateMinutes||lateMinutes(r.checkIn), early=r.earlyMinutes||earlyMinutes(r.checkOut);
+        const slInfo=r.shortLeaveStart?` [${fmtTime(r.shortLeaveStart)}-${fmtTime(r.shortLeaveEnd)||'?'}]`:'';
+        return [fmtDate(r.date), dayName(r.date), fmtTime(r.checkIn), late>0?`Late ${fmtDiff(late)}`:'On Time', fmtTime(r.checkOut), early>0?`Early ${fmtDiff(early)}`:(r.checkOut?'Full Day':'—'), (r.status||'').replace('_',' ').toUpperCase(), (r.leaveReason||'—')+slInfo];
+      });
+      // Summary row
+      tableRows.push([{content:`SUMMARY:  Present: ${cnt.present}  |  Absent: ${cnt.absent}  |  Late: ${cnt.late}  |  Leave: ${cnt.leave}  |  Short Leave: ${cnt.short_leave}  |  Early Out: ${cnt.early_out}`,colSpan:8,styles:{fillColor:[30,41,59],textColor:[59,130,246],fontStyle:'bold',halign:'center'}}]);
+      doc.autoTable({startY:60,head:[['Date','Day','Check In','Late','Check Out','Early','Status','Reason/Notes']],body:tableRows,theme:'grid',headStyles:{fillColor:[30,41,59],textColor:[148,163,184],fontSize:8,fontStyle:'bold'},bodyStyles:{fillColor:[15,23,42],textColor:[226,232,240],fontSize:8},alternateRowStyles:{fillColor:[39,52,73]},margin:{left:20,right:20},styles:{cellPadding:4}});
+    });
+    const pageCount=doc.internal.getNumberOfPages();
+    for(let i=1;i<=pageCount;i++){ doc.setPage(i); doc.setFontSize(8); doc.setTextColor(100,116,139); doc.text(`Page ${i} of ${pageCount}`,pw-70,doc.internal.pageSize.getHeight()-10); }
+    doc.save(`individual_reports_${label}_${start}.pdf`);
+  }catch(e){ alert('PDF Error: '+e.message); console.error(e); }
+}
+
+// ── ADMIN: Full Staff Monthly PDF ────────────────────────────
+window.exportFullStaffMonthlyPDF=async()=>{
+  const r=getDateRange('monthly'); const start=r.start, end=r.end;
+  try{
+    const q=query(collection(db,'attendance'),where('date','>=',start),where('date','<=',end),orderBy('date','asc'));
+    const snap=await getDocs(q); const allRows=[];
+    snap.forEach(d=>allRows.push({id:d.id,...d.data()}));
+    if(!allRows.length){ alert('No records for this month.'); return; }
+    const byTeacher={};
+    allRows.forEach(r=>{ if(!byTeacher[r.uid]) byTeacher[r.uid]={name:r.name,tid:r.teacherId,present:0,absent:0,late:0,leave:0,short_leave:0,early_out:0}; if(byTeacher[r.uid][r.status]!==undefined) byTeacher[r.uid][r.status]++; });
+    const tableRows=Object.values(byTeacher).map(t=>[t.name,t.tid||'—',t.present,t.absent,t.late,t.leave,t.short_leave,t.early_out,t.present+t.late+t.absent+t.leave+t.short_leave+t.early_out]);
+    buildPDF(
+      `Full Staff Monthly Attendance Summary`,
+      `Month: ${new Date(start+'T00:00:00').toLocaleDateString('en-US',{month:'long',year:'numeric'})}  |  Total Staff: ${tableRows.length}`,
+      ['Name','ID','Present','Absent','Late','Leave','Short Leave','Early Out','Total Days'],
+      tableRows,
+      `full_staff_monthly_${start.slice(0,7)}.pdf`
+    );
+  }catch(e){ alert('PDF Error: '+e.message); console.error(e); }
+};
+
+// ── EXCEL IMPORT ─────────────────────────────────────────────
+let _importData=[];
+window.downloadImportTemplate=()=>{
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet([
+    ['Name','TeacherID','Email','Password','Subject','Phone'],
+    ['Ahmed Khan','TCH001','ahmed@school.com','Pass@1234','Mathematics','+971501234567'],
+    ['Sara Ali','TCH002','sara@school.com','Pass@5678','Science','+971509876543']
+  ]);
+  ws['!cols']=[{wch:20},{wch:12},{wch:28},{wch:15},{wch:18},{wch:18}];
+  XLSX.utils.book_append_sheet(wb,ws,'Teachers');
+  XLSX.writeFile(wb,'teacher_import_template.xlsx');
+};
+
+window.previewExcelImport=file=>{
+  const f=file.files[0]; if(!f) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const data=new Uint8Array(e.target.result);
+    const wb=XLSX.read(data,{type:'array'});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+    _importData=rows;
+    const tbody=$('importPreviewBody'); if(!tbody) return;
+    tbody.innerHTML='';
+    rows.forEach((r,i)=>{
+      const name=(r['Name']||'').trim(), tid=(r['TeacherID']||'').trim(), email=(r['Email']||'').trim(), pass=(r['Password']||'').trim();
+      const valid=name&&tid&&email&&pass&&pass.length>=6&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td>${name||'<span style="color:var(--red)">Missing</span>'}</td><td>${tid||'<span style="color:var(--red)">Missing</span>'}</td><td>${email||'<span style="color:var(--red)">Missing</span>'}</td><td>${pass?'••••••••':'<span style="color:var(--red)">Missing</span>'}</td><td>${r['Subject']||'—'}</td><td>${r['Phone']||'—'}</td><td><span class="badge ${valid?'b-green':'b-red'}">${valid?'✅ Ready':'❌ Invalid'}</span></td>`;
+      tbody.appendChild(tr);
+    });
+    $('importPreviewArea').style.display='block';
+  };
+  reader.readAsArrayBuffer(f);
+};
+
+window.cancelImport=()=>{ $('importPreviewArea').style.display='none'; $('importPreviewBody').innerHTML=''; _importData=[]; $('excelImportFile').value=''; };
+
+window.runBulkImport=async()=>{
+  if(!_importData.length){ alert('No data to import.'); return; }
+  const btn=$('importRunBtn'), prog=$('importProgress');
+  btn.disabled=true; let success=0, failed=0, errors=[];
+  const total=_importData.length;
+  for(let i=0;i<total;i++){
+    const r=_importData[i];
+    const name=(r['Name']||'').trim(), tid=(r['TeacherID']||'').trim();
+    const email=(r['Email']||'').trim(), pass=(r['Password']||'').trim();
+    const subject=(r['Subject']||'').trim(), phone=(r['Phone']||'').trim();
+    prog.innerHTML=`⏳ Processing ${i+1}/${total}: ${name}...`;
+    if(!name||!tid||!email||!pass||pass.length<6||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ failed++; errors.push(`Row ${i+2}: ${name||'Unknown'} — invalid data`); continue; }
+    try{
+      const cred=await createUserWithEmailAndPassword(auth2,email,pass);
+      await signOut(auth2);
+      await setDoc(doc(db,'users',cred.user.uid),{ name,teacherId:tid,email,role:'teacher',subject,phone,createdAt:Timestamp.now() });
+      success++;
+    }catch(e){
+      failed++;
+      const msg=e.code==='auth/email-already-in-use'?'Email already exists':e.message;
+      errors.push(`Row ${i+2}: ${name} — ${msg}`);
+    }
+  }
+  prog.innerHTML=`✅ Done! <strong style="color:var(--green);">${success} created</strong>${failed?` | <strong style="color:var(--red);">${failed} failed</strong>`:''}`;
+  if(errors.length) prog.innerHTML+=`<br/><span style="color:var(--red);font-size:.78rem;">${errors.join('<br/>')}</span>`;
+  btn.disabled=false;
+  loadTeacherList(); loadTeacherDropdown();
 };
 
 window.adminTab=(tabId,el)=>{
