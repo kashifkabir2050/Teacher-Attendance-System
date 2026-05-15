@@ -850,6 +850,8 @@ window._submitPostLeave=async()=>{
     renderAttendanceBox(); loadTeacherReport();
   }catch(e){ alert('Error: '+e.message); }
 };
+
+async function loadTeacherReport(){
   const filter=$('tFilter')?$('tFilter').value:'daily';
   const {start,end}=getDateRange(filter);
   const tbody=$('tReportBody'); if(!tbody) return;
