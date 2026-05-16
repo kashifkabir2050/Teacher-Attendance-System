@@ -213,8 +213,8 @@ tbody tr:hover{background:rgba(255,255,255,.025);}
       </div>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>Date</th><th>Day</th><th>Check In</th><th>Late By</th><th>Check Out</th><th>Early By</th><th>Status</th><th>Reason</th></tr></thead>
-          <tbody id="tReportBody"><tr><td colspan="8" class="loading">No records</td></tr></tbody>
+          <thead><tr><th>Date</th><th>Day</th><th>Check In</th><th>Late By</th><th>Check Out</th><th>Early By</th><th>Status</th><th>Reason</th><th>📍 Location</th><th>🌐 IP</th></tr></thead>
+          <tbody id="tReportBody"><tr><td colspan="10" class="loading">No records</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -276,8 +276,8 @@ tbody tr:hover{background:rgba(255,255,255,.025);}
       </div>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>Name</th><th>ID</th><th>Date</th><th>Day</th><th>Check In</th><th>Late</th><th>Check Out</th><th>Early</th><th>Status</th><th>Reason</th><th>Actions</th></tr></thead>
-          <tbody id="aReportBody"><tr><td colspan="11" class="loading">Loading...</td></tr></tbody>
+          <thead><tr><th>Name</th><th>ID</th><th>Date</th><th>Day</th><th>Check In</th><th>Late</th><th>Check Out</th><th>Early</th><th>Status</th><th>Reason</th><th>📍 Location</th><th>🌐 IP</th><th>Actions</th></tr></thead>
+          <tbody id="aReportBody"><tr><td colspan="13" class="loading">Loading...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -593,6 +593,38 @@ function badgeCls(s){ return {present:'b-green',absent:'b-red',leave:'b-yellow',
 function lateMinutes(ts){ if(!ts) return 0; const d=ts.toDate?ts.toDate():new Date(ts); const m=d.getHours()*60+d.getMinutes(); return m>CI_LATE?m-CI_LATE:0; }
 function earlyMinutes(ts){ if(!ts) return 0; const d=ts.toDate?ts.toDate():new Date(ts); const m=d.getHours()*60+d.getMinutes(); return m<CO_SCHOOL?CO_SCHOOL-m:0; }
 function fmtDiff(m){ if(!m||m<=0) return '—'; return m<60?`${m}m`:`${Math.floor(m/60)}h ${m%60}m`; }
+// ── Location & IP Detection ────────────────────────────────
+async function getLocationAndIP(){
+  let ip='Unknown', city='Unknown', country='', lat=null, lon=null, locationStr='Unknown';
+  // 1. Get IP + rough location from ipapi
+  try{
+    const res=await fetch('https://ipapi.co/json/');
+    if(res.ok){
+      const d=await res.json();
+      ip=d.ip||'Unknown';
+      city=d.city||''; country=d.country_name||'';
+      lat=d.latitude||null; lon=d.longitude||null;
+      locationStr=[city,country].filter(Boolean).join(', ')||'Unknown';
+    }
+  }catch(e){ console.warn('IP lookup failed:',e.message); }
+  // 2. Try to get precise GPS location
+  try{
+    const pos=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{timeout:5000}));
+    lat=pos.coords.latitude; lon=pos.coords.longitude;
+    // reverse geocode with nominatim
+    try{
+      const geo=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+      if(geo.ok){
+        const gd=await geo.json();
+        const addr=gd.address||{};
+        const parts=[addr.suburb||addr.neighbourhood||addr.village||addr.town||addr.city,addr.city||addr.county,addr.country].filter(Boolean);
+        if(parts.length) locationStr=parts.join(', ');
+      }
+    }catch(e){}
+  }catch(e){ console.warn('GPS unavailable:',e.message); }
+  return { ip, locationStr, lat, lon };
+}
+
 function getDateRange(filter){
   const now=new Date(),y=now.getFullYear(),mo=now.getMonth(),d=now.getDate();
   if(filter==='daily') return {start:todayStr(),end:todayStr()};
@@ -777,6 +809,7 @@ window._submitCheckin=async st=>{
   const n=nowMin(); let status=st; if(st==='present'&&n>CI_LATE) status='late';
   const today=todayStr(), docId=`${currentUser.uid}_${today}`, lateMin=n>CI_LATE?n-CI_LATE:0;
   try{
+    const {ip,locationStr,lat,lon}=await getLocationAndIP();
     await setDoc(doc(db,'attendance',docId),{
       uid: currentUser.uid,
       teacherId: currentTeacher.teacherId||currentUser.uid.slice(0,8).toUpperCase(),
@@ -785,9 +818,11 @@ window._submitCheckin=async st=>{
       checkIn: Timestamp.now(),
       checkOut: null,
       status, leaveReason:'', lateMinutes:lateMin, earlyMinutes:0,
-      markedBy: 'teacher'
+      markedBy: 'teacher',
+      checkInIP: ip, checkInLocation: locationStr,
+      checkInLat: lat, checkInLon: lon
     },{merge:true});
-    alert(`✅ Marked: ${status.replace('_',' ')}${lateMin>0?' (Late by '+fmtDiff(lateMin)+')':''}`);
+    alert(`✅ Marked: ${status.replace('_',' ')}${lateMin>0?' (Late by '+fmtDiff(lateMin)+')':''}\n📍 ${locationStr} | 🌐 ${ip}`);
     renderAttendanceBox(); loadTeacherReport();
   }catch(e){
     console.error('Check-in error:',e);
@@ -804,13 +839,18 @@ window._submitLeave=async()=>{
   if(!reason){ alert('Enter a reason.'); return; }
   const docId=`${currentUser.uid}_${todayStr()}`;
   try{
-    await setDoc(doc(db,'attendance',docId),{ uid:currentUser.uid, teacherId:currentTeacher.teacherId||currentUser.uid.slice(0,8).toUpperCase(), name:currentTeacher.name, date:todayStr(), checkIn:Timestamp.now(), checkOut:null, status:type, leaveReason:reason, lateMinutes:0, earlyMinutes:0 });
-    alert('✅ Leave submitted!'); renderAttendanceBox(); loadTeacherReport();
+    const {ip,locationStr,lat,lon}=await getLocationAndIP();
+    await setDoc(doc(db,'attendance',docId),{ uid:currentUser.uid, teacherId:currentTeacher.teacherId||currentUser.uid.slice(0,8).toUpperCase(), name:currentTeacher.name, date:todayStr(), checkIn:Timestamp.now(), checkOut:null, status:type, leaveReason:reason, lateMinutes:0, earlyMinutes:0, checkInIP:ip, checkInLocation:locationStr, checkInLat:lat, checkInLon:lon });
+    alert('✅ Leave submitted!\n📍 '+locationStr+' | 🌐 '+ip); renderAttendanceBox(); loadTeacherReport();
   }catch(e){ alert('Error: '+e.message); }
 };
 window._submitCheckout=async()=>{
   const docId=`${currentUser.uid}_${todayStr()}`, n=nowMin(), earlyMin=n<CO_SCHOOL?CO_SCHOOL-n:0;
-  try{ await updateDoc(doc(db,'attendance',docId),{ checkOut:Timestamp.now(), earlyMinutes:earlyMin }); alert('✅ Checked out!'); renderAttendanceBox(); loadTeacherReport(); }
+  try{
+    const {ip,locationStr,lat,lon}=await getLocationAndIP();
+    await updateDoc(doc(db,'attendance',docId),{ checkOut:Timestamp.now(), earlyMinutes:earlyMin, checkOutIP:ip, checkOutLocation:locationStr, checkOutLat:lat, checkOutLon:lon });
+    alert('✅ Checked out!\n📍 '+locationStr+' | 🌐 '+ip); renderAttendanceBox(); loadTeacherReport();
+  }
   catch(e){ alert('Error: '+e.message); }
 };
 window._submitCheckoutEarly=async()=>{
@@ -819,8 +859,9 @@ window._submitCheckoutEarly=async()=>{
   try{
     const snap=await getDoc(doc(db,'attendance',docId));
     const curStatus=snap.exists()?snap.data().status:'present';
-    await updateDoc(doc(db,'attendance',docId),{ checkOut:Timestamp.now(), earlyMinutes:earlyMin, status:curStatus==='late'?'late':'early_out' });
-    alert(`⚠️ Early check-out (${fmtDiff(earlyMin)} early)`); renderAttendanceBox(); loadTeacherReport();
+    const {ip,locationStr,lat,lon}=await getLocationAndIP();
+    await updateDoc(doc(db,'attendance',docId),{ checkOut:Timestamp.now(), earlyMinutes:earlyMin, status:curStatus==='late'?'late':'early_out', checkOutIP:ip, checkOutLocation:locationStr, checkOutLat:lat, checkOutLon:lon });
+    alert(`⚠️ Early check-out (${fmtDiff(earlyMin)} early)\n📍 ${locationStr} | 🌐 ${ip}`); renderAttendanceBox(); loadTeacherReport();
   }catch(e){ alert('Error: '+e.message); }
 };
 
@@ -873,12 +914,16 @@ async function loadTeacherReport(){
     rows.forEach(r=>{
       const late=r.lateMinutes||lateMinutes(r.checkIn), early=r.earlyMinutes||earlyMinutes(r.checkOut);
       const tr=document.createElement('tr');
+      const locStr=r.checkInLocation||r.checkOutLocation||'—';
+      const ipStr=r.checkInIP||r.checkOutIP||'—';
       tr.innerHTML=`<td>${fmtDate(r.date)}</td><td>${dayName(r.date)}</td><td>${fmtTime(r.checkIn)}</td>
         <td>${late>0?`<span class="late-tag">⚠️ ${fmtDiff(late)}</span>`:'<span style="color:var(--green);font-size:.75rem;">✅ On Time</span>'}</td>
         <td>${fmtTime(r.checkOut)}</td>
         <td>${early>0?`<span class="early-tag">⚠️ ${fmtDiff(early)}</span>`:(r.checkOut?'<span style="color:var(--green);font-size:.75rem;">✅ Full Day</span>':'—')}</td>
         <td><span class="badge ${badgeCls(r.status)}">${(r.status||'').replace('_',' ')}</span></td>
-        <td>${r.leaveReason||'—'}</td>`;
+        <td>${r.leaveReason||'—'}</td>
+        <td style="font-size:.76rem;color:var(--blue);">📍 ${locStr}</td>
+        <td style="font-size:.76rem;color:var(--muted);font-family:monospace;">🌐 ${ipStr}</td>`;
       tbody.appendChild(tr);
     });
   }catch(e){ tbody.innerHTML=`<tr><td colspan="8" style="color:var(--red);text-align:center;">Error: ${e.message}</td></tr>`; }
@@ -941,7 +986,7 @@ async function loadAdminReport(){
   if(fromEl&&fromEl.value&&toEl&&toEl.value){ start=fromEl.value; end=toEl.value; }
   else{ const r=getDateRange(filterEl?filterEl.value:'daily'); start=r.start; end=r.end; }
   const tbody=$('aReportBody'); if(!tbody) return;
-  tbody.innerHTML='<tr><td colspan="11" class="loading">Loading...</td></tr>';
+  tbody.innerHTML='<tr><td colspan="13" class="loading">Loading...</td></tr>';
   try{
     const q=query(collection(db,'attendance'),where('date','>=',start),where('date','<=',end),orderBy('date','desc'));
     const snap=await getDocs(q); const rows=[]; snap.forEach(d=>rows.push({id:d.id,...d.data()}));
@@ -952,11 +997,15 @@ async function loadAdminReport(){
     $('sumLate').textContent=cnt.late; $('sumEarly').textContent=cnt.early_out;
     $('sumTotal').textContent=rows.length;
     tbody.innerHTML='';
-    if(!rows.length){ tbody.innerHTML='<tr><td colspan="11" class="loading">No records</td></tr>'; return; }
+    if(!rows.length){ tbody.innerHTML='<tr><td colspan="13" class="loading">No records</td></tr>'; return; }
     rows.forEach(r=>{
       const late=r.lateMinutes||lateMinutes(r.checkIn), early=r.earlyMinutes||earlyMinutes(r.checkOut);
       const tr=document.createElement('tr');
       const leaveMeta=r.shortLeaveStart?`<br/><span style="font-size:.72rem;color:var(--orange);">🕐 ${fmtTime(r.shortLeaveStart)}–${fmtTime(r.shortLeaveEnd)||'?'}</span>`:'';
+      const locInStr=r.checkInLocation||'—', locOutStr=r.checkOutLocation||'';
+      const locDisplay=locInStr+(locOutStr&&locOutStr!==locInStr?`<br/><span style="color:var(--purple);font-size:.72rem;">Out: ${locOutStr}</span>`:'');
+      const ipInStr=r.checkInIP||'—', ipOutStr=r.checkOutIP||'';
+      const ipDisplay=ipInStr+(ipOutStr&&ipOutStr!==ipInStr?`<br/><span style="color:var(--purple);font-size:.72rem;">${ipOutStr}</span>`:'');
       tr.innerHTML=`<td>${r.name||'—'}</td><td>${r.teacherId||'—'}</td><td>${fmtDate(r.date)}</td>
         <td style="font-size:.75rem;color:var(--muted);">${dayName(r.date)}</td>
         <td>${fmtTime(r.checkIn)}</td>
@@ -965,13 +1014,15 @@ async function loadAdminReport(){
         <td>${early>0?`<span class="early-tag">⚠️ ${fmtDiff(early)}</span>`:(r.checkOut?'<span style="color:var(--green);font-size:.75rem;">✅</span>':'—')}</td>
         <td><span class="badge ${badgeCls(r.status)}">${(r.status||'').replace('_',' ')}</span></td>
         <td>${r.leaveReason||'—'}${leaveMeta}</td>
+        <td style="font-size:.74rem;color:var(--blue);max-width:130px;">📍 ${locDisplay}</td>
+        <td style="font-size:.73rem;color:var(--muted);font-family:monospace;max-width:110px;">🌐 ${ipDisplay}</td>
         <td style="display:flex;gap:5px;">
           <button class="action-btn" onclick="window._openEditModal('${r.id}')">✏️</button>
           <button class="action-btn del" onclick="window._deleteRecord('${r.id}')">🗑</button>
         </td>`;
       tbody.appendChild(tr);
     });
-  }catch(e){ tbody.innerHTML=`<tr><td colspan="11" style="color:var(--red);text-align:center;">Error: ${e.message}</td></tr>`; }
+  }catch(e){ tbody.innerHTML=`<tr><td colspan="13" style="color:var(--red);text-align:center;">Error: ${e.message}</td></tr>`; }
 }
 window.loadAdminReport=loadAdminReport;
 
@@ -1179,9 +1230,9 @@ window._deleteRecord=async docId=>{
 };
 
 window.exportCSV=()=>{
-  const rows=[['Name','Teacher ID','Date','Day','Check In','Late By','Check Out','Early By','Status','Reason']];
+  const rows=[['Name','Teacher ID','Date','Day','Check In','Late By','Check Out','Early By','Status','Reason','Location','IP']];
   $('aReportBody').querySelectorAll('tr').forEach(tr=>{
-    const cells=[...tr.querySelectorAll('td')].slice(0,10).map(td=>td.innerText.replace(/,/g,' ').replace(/\n/g,' ').trim());
+    const cells=[...tr.querySelectorAll('td')].slice(0,12).map(td=>td.innerText.replace(/,/g,' ').replace(/\n/g,' ').replace(/[📍🌐]/g,'').trim());
     if(cells.length>=9) rows.push(cells);
   });
   const csv=rows.map(r=>r.join(',')).join('\n');
@@ -1238,13 +1289,13 @@ window.exportTeacherPDF=async(period)=>{
     if(cnt[r.status]!==undefined) cnt[r.status]++;
     const late=r.lateMinutes||lateMinutes(r.checkIn), early=r.earlyMinutes||earlyMinutes(r.checkOut);
     const slInfo=r.shortLeaveStart?` [${fmtTime(r.shortLeaveStart)}-${fmtTime(r.shortLeaveEnd)||'?'}]`:'';
-    return [fmtDate(r.date), dayName(r.date), fmtTime(r.checkIn), late>0?`Late ${fmtDiff(late)}`:'On Time', fmtTime(r.checkOut), early>0?`Early ${fmtDiff(early)}`:(r.checkOut?'Full Day':'—'), (r.status||'').replace('_',' ').toUpperCase(), (r.leaveReason||'—')+slInfo];
+    return [fmtDate(r.date), dayName(r.date), fmtTime(r.checkIn), late>0?`Late ${fmtDiff(late)}`:'On Time', fmtTime(r.checkOut), early>0?`Early ${fmtDiff(early)}`:(r.checkOut?'Full Day':'—'), (r.status||'').replace('_',' ').toUpperCase(), (r.leaveReason||'—')+slInfo, r.checkInLocation||r.checkOutLocation||'—', r.checkInIP||r.checkOutIP||'—'];
   });
   const summary=`P:${cnt.present} A:${cnt.absent} Late:${cnt.late} L:${cnt.leave} SL:${cnt.short_leave} Early:${cnt.early_out}`;
   buildPDF(
     `${period==='daily'?'Daily':'Monthly'} Report — ${currentTeacher.name} (${currentTeacher.teacherId||''})`,
     `Period: ${fmtDate(start)} to ${fmtDate(end)}  |  ${summary}`,
-    ['Date','Day','Check In','Late','Check Out','Early','Status','Reason/Notes'],
+    ['Date','Day','Check In','Late','Check Out','Early','Status','Reason/Notes','📍 Location','🌐 IP'],
     tableRows,
     `attendance_${currentTeacher.teacherId||'teacher'}_${period}_${start}.pdf`
   );
@@ -1292,11 +1343,11 @@ async function _exportAdminIndividualPDF(start,end,label){
         if(cnt[r.status]!==undefined) cnt[r.status]++;
         const late=r.lateMinutes||lateMinutes(r.checkIn), early=r.earlyMinutes||earlyMinutes(r.checkOut);
         const slInfo=r.shortLeaveStart?` [${fmtTime(r.shortLeaveStart)}-${fmtTime(r.shortLeaveEnd)||'?'}]`:'';
-        return [fmtDate(r.date), dayName(r.date), fmtTime(r.checkIn), late>0?`Late ${fmtDiff(late)}`:'On Time', fmtTime(r.checkOut), early>0?`Early ${fmtDiff(early)}`:(r.checkOut?'Full Day':'—'), (r.status||'').replace('_',' ').toUpperCase(), (r.leaveReason||'—')+slInfo];
+        return [fmtDate(r.date), dayName(r.date), fmtTime(r.checkIn), late>0?`Late ${fmtDiff(late)}`:'On Time', fmtTime(r.checkOut), early>0?`Early ${fmtDiff(early)}`:(r.checkOut?'Full Day':'—'), (r.status||'').replace('_',' ').toUpperCase(), (r.leaveReason||'—')+slInfo, r.checkInLocation||r.checkOutLocation||'—', r.checkInIP||r.checkOutIP||'—'];
       });
       // Summary row
-      tableRows.push([{content:`SUMMARY:  Present: ${cnt.present}  |  Absent: ${cnt.absent}  |  Late: ${cnt.late}  |  Leave: ${cnt.leave}  |  Short Leave: ${cnt.short_leave}  |  Early Out: ${cnt.early_out}`,colSpan:8,styles:{fillColor:[30,41,59],textColor:[59,130,246],fontStyle:'bold',halign:'center'}}]);
-      doc.autoTable({startY:60,head:[['Date','Day','Check In','Late','Check Out','Early','Status','Reason/Notes']],body:tableRows,theme:'grid',headStyles:{fillColor:[30,41,59],textColor:[148,163,184],fontSize:8,fontStyle:'bold'},bodyStyles:{fillColor:[15,23,42],textColor:[226,232,240],fontSize:8},alternateRowStyles:{fillColor:[39,52,73]},margin:{left:20,right:20},styles:{cellPadding:4}});
+      tableRows.push([{content:`SUMMARY:  Present: ${cnt.present}  |  Absent: ${cnt.absent}  |  Late: ${cnt.late}  |  Leave: ${cnt.leave}  |  Short Leave: ${cnt.short_leave}  |  Early Out: ${cnt.early_out}`,colSpan:10,styles:{fillColor:[30,41,59],textColor:[59,130,246],fontStyle:'bold',halign:'center'}}]);
+      doc.autoTable({startY:60,head:[['Date','Day','Check In','Late','Check Out','Early','Status','Reason/Notes','📍 Location','🌐 IP']],body:tableRows,theme:'grid',headStyles:{fillColor:[30,41,59],textColor:[148,163,184],fontSize:7,fontStyle:'bold'},bodyStyles:{fillColor:[15,23,42],textColor:[226,232,240],fontSize:7},alternateRowStyles:{fillColor:[39,52,73]},margin:{left:15,right:15},styles:{cellPadding:3}});
     });
     const pageCount=doc.internal.getNumberOfPages();
     for(let i=1;i<=pageCount;i++){ doc.setPage(i); doc.setFontSize(8); doc.setTextColor(100,116,139); doc.text(`Page ${i} of ${pageCount}`,pw-70,doc.internal.pageSize.getHeight()-10); }
