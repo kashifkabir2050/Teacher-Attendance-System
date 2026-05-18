@@ -984,14 +984,58 @@ function drawTcPunct(rows){ destroyChart(tcPunct); const lateDays=rows.filter(r=
 function drawTcWeek(rows){ destroyChart(tcWeek); const days=['Mon','Tue','Wed','Thu'], dayIdx={1:0,2:1,3:2,4:3}, pres=[0,0,0,0], abs=[0,0,0,0]; rows.forEach(r=>{ const d=dayOfStr(r.date); if(dayIdx[d]!==undefined){ if(r.status==='present'||r.status==='late') pres[dayIdx[d]]++; else abs[dayIdx[d]]++; } }); const ctx=$('tcWeek'); if(!ctx) return; tcWeek=new Chart(ctx,{ type:'bar', data:{ labels:days, datasets:[{ label:'Present', data:pres, backgroundColor:'rgba(34,197,94,.65)', borderRadius:4 },{ label:'Absent/Leave', data:abs, backgroundColor:'rgba(239,68,68,.65)', borderRadius:4 }]}, options:{ plugins:{ legend:{ labels:{ color:'#94a3b8',font:{size:10} } } }, scales:{ x:{ ticks:{ color:'#64748b' }, grid:{ color:'rgba(255,255,255,.03)' } }, y:{ beginAtZero:true, ticks:{ color:'#64748b',stepSize:1 }, grid:{ color:'rgba(255,255,255,.04)' } } } } }); }
 
 // ── ADMIN: Report ─────────────────────────────────────────
+async function adminAutoAbsentForRange(start, end){
+  // Only auto-absent for past dates or today after 8:00 AM
+  const today = todayStr();
+  const now = nowMin();
+  try{
+    // Get all teachers
+    const usersSnap = await getDocs(collection(db,'users'));
+    const teachers = [];
+    usersSnap.forEach(d=>{ const t={id:d.id,...d.data()}; if(t.role==='teacher') teachers.push(t); });
+    if(!teachers.length) return;
+
+    const writes = [];
+    // Loop every school day in the range
+    for(let d=new Date(start+'T00:00:00'), e=new Date(end+'T00:00:00'); d<=e; d.setDate(d.getDate()+1)){
+      const dateStr = fmt(d);
+      if(isOffDay(dateStr)) continue;                          // skip weekends
+      if(dateStr > today) continue;                            // skip future dates
+      if(dateStr === today && now < CI_CLOSE) continue;        // skip today before 8:00 AM
+
+      for(const teacher of teachers){
+        const docId = `${teacher.id}_${dateStr}`;
+        const snap = await getDoc(doc(db,'attendance',docId));
+        if(!snap.exists()){
+          writes.push(setDoc(doc(db,'attendance',docId),{
+            uid: teacher.id,
+            teacherId: teacher.teacherId || teacher.id.slice(0,8).toUpperCase(),
+            name: teacher.name,
+            date: dateStr,
+            checkIn: null, checkOut: null,
+            status: 'absent',
+            leaveReason: 'Auto-marked absent (no check-in by 8:00 AM)',
+            lateMinutes: 0, earlyMinutes: 0,
+            markedBy: 'system'
+          },{merge:false}));
+        }
+      }
+    }
+    await Promise.all(writes);
+  }catch(e){ console.warn('Admin auto-absent error:',e.message); }
+}
+
 async function loadAdminReport(){
   const filterEl=$('aFilter'), fromEl=$('aFrom'), toEl=$('aTo');
   let start,end;
   if(fromEl&&fromEl.value&&toEl&&toEl.value){ start=fromEl.value; end=toEl.value; }
   else{ const r=getDateRange(filterEl?filterEl.value:'daily'); start=r.start; end=r.end; }
   const tbody=$('aReportBody'); if(!tbody) return;
-  tbody.innerHTML='<tr><td colspan="13" class="loading">Loading...</td></tr>';
+  tbody.innerHTML='<tr><td colspan="13" class="loading">Checking attendance records...</td></tr>';
   try{
+    // Auto-mark absent for any teacher with no record after 8:00 AM
+    await adminAutoAbsentForRange(start, end);
+
     const q=query(collection(db,'attendance'),where('date','>=',start),where('date','<=',end),orderBy('date','desc'));
     const snap=await getDocs(q); const rows=[]; snap.forEach(d=>rows.push({id:d.id,...d.data()}));
     const cnt={present:0,absent:0,leave:0,short_leave:0,late:0,early_out:0};
