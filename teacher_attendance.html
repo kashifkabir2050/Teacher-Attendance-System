@@ -560,7 +560,7 @@ let clockInterval=null;
 let tcPie=null,tcLine=null,tcPunct=null,tcWeek=null;
 let chartPie=null,chartLine=null,chartBar=null,chartLateBar=null;
 
-const CI_OPEN=6*60+50, CI_LATE=7*60+0, CO_SCHOOL=14*60+30;
+const CI_OPEN=6*60+50, CI_LATE=7*60+0, CI_CLOSE=8*60, CO_SCHOOL=14*60+30;
 const OFF_DAYS=[0,5,6];
 
 // ── Helpers ────────────────────────────────────────────────
@@ -747,10 +747,14 @@ async function renderAttendanceBox(){
     if(rec.leaveReason) box.innerHTML+=`<div class="alert alert-orange">📝 ${rec.leaveReason}</div>`;
   }
   if(!rec||!rec.checkIn){
-    if(n>=CI_OPEN){
+    if(n>=CI_CLOSE){
+      // Past 8:00 AM — window closed, auto-marked absent
+      box.innerHTML+=`<div class="alert alert-red">🚫 Check-In window <strong>CLOSED</strong> at 8:00 AM</div>
+        <div class="alert alert-orange">📋 You have been automatically marked <strong>Absent</strong> for today.<br><span style="font-size:.8rem;opacity:.8;">No check-in was recorded before 8:00 AM.</span></div>`;
+    } else if(n>=CI_OPEN){
       const isLate=n>CI_LATE;
       box.innerHTML+=(isLate?`<div class="alert alert-orange">⚠️ Checking in <strong>${fmtDiff(n-CI_LATE)} late</strong> — will be marked <strong>Late</strong></div>`:'')
-        +`<div class="alert alert-green">⏰ Check-In window is <strong>OPEN</strong></div>
+        +`<div class="alert alert-green">⏰ Check-In window is <strong>OPEN</strong> — closes at <strong>8:00 AM</strong></div>
         <div class="btn-group">
           <button class="btn btn-green" onclick="window._submitCheckin('present')">✅ Present</button>
           <button class="btn btn-orange" onclick="window._openLeave('short_leave')">⏱ Short Leave</button>
@@ -758,7 +762,7 @@ async function renderAttendanceBox(){
           <button class="btn btn-red" onclick="window._submitCheckin('absent')">❌ Absent</button>
         </div>`;
     } else {
-      box.innerHTML+=`<div class="alert alert-yellow">⏳ Check-In opens at <strong>6:50 AM</strong></div>`;
+      box.innerHTML+=`<div class="alert alert-yellow">⏳ Check-In opens at <strong>6:50 AM</strong> and closes at <strong>8:00 AM</strong></div>`;
     }
   } else if(rec&&rec.checkIn&&!rec.checkOut){
     if(n>=CO_SCHOOL){
