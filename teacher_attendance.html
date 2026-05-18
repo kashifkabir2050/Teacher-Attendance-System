@@ -1232,7 +1232,17 @@ window._deleteRecord=async docId=>{
 window.exportCSV=()=>{
   const rows=[['Name','Teacher ID','Date','Day','Check In','Late By','Check Out','Early By','Status','Reason','Location','IP']];
   $('aReportBody').querySelectorAll('tr').forEach(tr=>{
-    const cells=[...tr.querySelectorAll('td')].slice(0,12).map(td=>td.innerText.replace(/,/g,' ').replace(/\n/g,' ').replace(/[📍🌐]/g,'').trim());
+    const cells=[...tr.querySelectorAll('td')].slice(0,12).map(td=>{
+      let val=td.innerText
+        .replace(/,/g,' ')
+        .replace(/\n/g,' ')
+        .replace(/[📍🌐⚠️✅]/g,'')
+        .replace(/—/g,'')
+        .trim();
+      // Wrap in quotes if value contains spaces or special chars, to keep CSV clean
+      if(val.includes('"')) val=val.replace(/"/g,'""');
+      return val ? `"${val}"` : '';
+    });
     if(cells.length>=9) rows.push(cells);
   });
   const csv=rows.map(r=>r.join(',')).join('\n');
@@ -1248,7 +1258,7 @@ function buildPDF(title, subtitle, columns, rows, filename){
   // Header bar
   doc.setFillColor(15,23,42); doc.rect(0,0,pw,50,'F');
   doc.setFontSize(16); doc.setTextColor(59,130,246); doc.setFont(undefined,'bold');
-  doc.text('📚 Teacher Attendance System',30,20);
+  doc.text('Teacher Attendance System',30,20);
   doc.setFontSize(11); doc.setTextColor(226,232,240); doc.setFont(undefined,'normal');
   doc.text(title,30,35);
   doc.setFontSize(9); doc.setTextColor(148,163,184);
@@ -1289,13 +1299,13 @@ window.exportTeacherPDF=async(period)=>{
     if(cnt[r.status]!==undefined) cnt[r.status]++;
     const late=r.lateMinutes||lateMinutes(r.checkIn), early=r.earlyMinutes||earlyMinutes(r.checkOut);
     const slInfo=r.shortLeaveStart?` [${fmtTime(r.shortLeaveStart)}-${fmtTime(r.shortLeaveEnd)||'?'}]`:'';
-    return [fmtDate(r.date), dayName(r.date), fmtTime(r.checkIn), late>0?`Late ${fmtDiff(late)}`:'On Time', fmtTime(r.checkOut), early>0?`Early ${fmtDiff(early)}`:(r.checkOut?'Full Day':'—'), (r.status||'').replace('_',' ').toUpperCase(), (r.leaveReason||'—')+slInfo, r.checkInLocation||r.checkOutLocation||'—', r.checkInIP||r.checkOutIP||'—'];
+    return [fmtDate(r.date), dayName(r.date), fmtTime(r.checkIn)||'', late>0?`Late ${fmtDiff(late)}`:'On Time', fmtTime(r.checkOut)||'', early>0?`Early ${fmtDiff(early)}`:(r.checkOut?'Full Day':''), (r.status||'').replace('_',' ').toUpperCase(), (r.leaveReason||'')+slInfo, r.checkInLocation||r.checkOutLocation||'', r.checkInIP||r.checkOutIP||''];
   });
   const summary=`P:${cnt.present} A:${cnt.absent} Late:${cnt.late} L:${cnt.leave} SL:${cnt.short_leave} Early:${cnt.early_out}`;
   buildPDF(
-    `${period==='daily'?'Daily':'Monthly'} Report — ${currentTeacher.name} (${currentTeacher.teacherId||''})`,
+    `${period==='daily'?'Daily':'Monthly'} Report - ${currentTeacher.name} (${currentTeacher.teacherId||''})`,
     `Period: ${fmtDate(start)} to ${fmtDate(end)}  |  ${summary}`,
-    ['Date','Day','Check In','Late','Check Out','Early','Status','Reason/Notes','📍 Location','🌐 IP'],
+    ['Date','Day','Check In','Late','Check Out','Early','Status','Reason/Notes','Location','IP'],
     tableRows,
     `attendance_${currentTeacher.teacherId||'teacher'}_${period}_${start}.pdf`
   );
@@ -1334,20 +1344,20 @@ async function _exportAdminIndividualPDF(start,end,label){
       const cnt={present:0,absent:0,late:0,leave:0,short_leave:0,early_out:0};
       doc.setFillColor(15,23,42); doc.rect(0,0,pw,55,'F');
       doc.setFontSize(15); doc.setTextColor(59,130,246); doc.setFont(undefined,'bold');
-      doc.text('📚 Teacher Attendance System',30,20);
+      doc.text('Teacher Attendance System',30,20);
       doc.setFontSize(12); doc.setTextColor(226,232,240);
-      doc.text(`${label==='daily'?'Daily':'Monthly'} Report — ${teacher.name} (ID: ${teacher.tid||'—'})`,30,36);
+      doc.text(`${label==='daily'?'Daily':'Monthly'} Report - ${teacher.name} (ID: ${teacher.tid||''})`,30,36);
       doc.setFontSize(9); doc.setTextColor(148,163,184);
       doc.text(`Period: ${fmtDate(start)} to ${fmtDate(end)}   |   Generated: ${new Date().toLocaleString()}`,30,50);
       const tableRows=teacher.rows.map(r=>{
         if(cnt[r.status]!==undefined) cnt[r.status]++;
         const late=r.lateMinutes||lateMinutes(r.checkIn), early=r.earlyMinutes||earlyMinutes(r.checkOut);
         const slInfo=r.shortLeaveStart?` [${fmtTime(r.shortLeaveStart)}-${fmtTime(r.shortLeaveEnd)||'?'}]`:'';
-        return [fmtDate(r.date), dayName(r.date), fmtTime(r.checkIn), late>0?`Late ${fmtDiff(late)}`:'On Time', fmtTime(r.checkOut), early>0?`Early ${fmtDiff(early)}`:(r.checkOut?'Full Day':'—'), (r.status||'').replace('_',' ').toUpperCase(), (r.leaveReason||'—')+slInfo, r.checkInLocation||r.checkOutLocation||'—', r.checkInIP||r.checkOutIP||'—'];
+        return [fmtDate(r.date), dayName(r.date), fmtTime(r.checkIn)||'', late>0?`Late ${fmtDiff(late)}`:'On Time', fmtTime(r.checkOut)||'', early>0?`Early ${fmtDiff(early)}`:(r.checkOut?'Full Day':''), (r.status||'').replace('_',' ').toUpperCase(), (r.leaveReason||'')+slInfo, r.checkInLocation||r.checkOutLocation||'', r.checkInIP||r.checkOutIP||''];
       });
       // Summary row
       tableRows.push([{content:`SUMMARY:  Present: ${cnt.present}  |  Absent: ${cnt.absent}  |  Late: ${cnt.late}  |  Leave: ${cnt.leave}  |  Short Leave: ${cnt.short_leave}  |  Early Out: ${cnt.early_out}`,colSpan:10,styles:{fillColor:[30,41,59],textColor:[59,130,246],fontStyle:'bold',halign:'center'}}]);
-      doc.autoTable({startY:60,head:[['Date','Day','Check In','Late','Check Out','Early','Status','Reason/Notes','📍 Location','🌐 IP']],body:tableRows,theme:'grid',headStyles:{fillColor:[30,41,59],textColor:[148,163,184],fontSize:7,fontStyle:'bold'},bodyStyles:{fillColor:[15,23,42],textColor:[226,232,240],fontSize:7},alternateRowStyles:{fillColor:[39,52,73]},margin:{left:15,right:15},styles:{cellPadding:3}});
+      doc.autoTable({startY:60,head:[['Date','Day','Check In','Late','Check Out','Early','Status','Reason/Notes','Location','IP']],body:tableRows,theme:'grid',headStyles:{fillColor:[30,41,59],textColor:[148,163,184],fontSize:7,fontStyle:'bold'},bodyStyles:{fillColor:[15,23,42],textColor:[226,232,240],fontSize:7},alternateRowStyles:{fillColor:[39,52,73]},margin:{left:15,right:15},styles:{cellPadding:3}});
     });
     const pageCount=doc.internal.getNumberOfPages();
     for(let i=1;i<=pageCount;i++){ doc.setPage(i); doc.setFontSize(8); doc.setTextColor(100,116,139); doc.text(`Page ${i} of ${pageCount}`,pw-70,doc.internal.pageSize.getHeight()-10); }
@@ -1365,7 +1375,7 @@ window.exportFullStaffMonthlyPDF=async()=>{
     if(!allRows.length){ alert('No records for this month.'); return; }
     const byTeacher={};
     allRows.forEach(r=>{ if(!byTeacher[r.uid]) byTeacher[r.uid]={name:r.name,tid:r.teacherId,present:0,absent:0,late:0,leave:0,short_leave:0,early_out:0}; if(byTeacher[r.uid][r.status]!==undefined) byTeacher[r.uid][r.status]++; });
-    const tableRows=Object.values(byTeacher).map(t=>[t.name,t.tid||'—',t.present,t.absent,t.late,t.leave,t.short_leave,t.early_out,t.present+t.late+t.absent+t.leave+t.short_leave+t.early_out]);
+    const tableRows=Object.values(byTeacher).map(t=>[t.name,t.tid||'',t.present,t.absent,t.late,t.leave,t.short_leave,t.early_out,t.present+t.late+t.absent+t.leave+t.short_leave+t.early_out]);
     buildPDF(
       `Full Staff Monthly Attendance Summary`,
       `Month: ${new Date(start+'T00:00:00').toLocaleDateString('en-US',{month:'long',year:'numeric'})}  |  Total Staff: ${tableRows.length}`,
