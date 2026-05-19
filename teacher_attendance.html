@@ -1090,7 +1090,15 @@ window.exportDeptCSV=async function(){
     const csvRows=[header.join(',')];
     rows.forEach(r=>{
       const late=r.lateMinutes||lateMinutes(r.checkIn), early=r.earlyMinutes||earlyMinutes(r.checkOut);
-      csvRows.push([r.name,r.teacherId,_teacherSubjectMap[r.uid]||'',r.date,dayName(r.date),fmtTime(r.checkIn),late,fmtTime(r.checkOut),early,(r.status||'').replace('_',' '),r.leaveReason||'',r.checkInLocation||'',r.checkInIP||''].map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(','));
+      const ciTime=r.checkIn?fmtTime(r.checkIn):'';
+      const coTime=r.checkOut?fmtTime(r.checkOut):'';
+      const lateVal=late>0?late:'';
+      const earlyVal=early>0?early:'';
+      const locVal=(r.checkInLocation&&r.checkInLocation!=='Unknown')?r.checkInLocation:'';
+      const ipVal=(r.checkInIP&&r.checkInIP!=='Unknown')?r.checkInIP:'';
+      const reasonVal=r.leaveReason||'';
+      const cells=[r.name||'',r.teacherId||'',_teacherSubjectMap[r.uid]||'',r.date||'',dayName(r.date),ciTime,lateVal,coTime,earlyVal,(r.status||'').replace('_',' '),reasonVal,locVal,ipVal];
+      csvRows.push(cells.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
     });
     const blob=new Blob([csvRows.join('\n')],{type:'text/csv'});
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
