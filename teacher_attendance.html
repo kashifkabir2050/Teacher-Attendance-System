@@ -247,6 +247,21 @@ tbody tr:hover{background:rgba(255,255,255,.025);}
     <div class="sum-box sb-blue"><div class="num" id="sumEarly" style="color:var(--blue);">0</div><div class="lbl2">Early Out</div></div>
     <div class="sum-box" style="background:rgba(59,130,246,.08);"><div class="num" id="sumTotal" style="color:var(--accent);">0</div><div class="lbl2">Total</div></div>
   </div>
+  <!-- Department / Subject Filter Bar -->
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 18px;margin-bottom:18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+    <span style="color:var(--muted);font-size:.82rem;font-weight:600;white-space:nowrap;">🏫 Department:</span>
+    <div id="deptFilterBtns" style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="tab active" id="deptBtn_all" onclick="setDeptFilter('all',this)">All Staff</button>
+      <button class="tab" id="deptBtn_mh" onclick="setDeptFilter('Middle & High',this)">Middle &amp; High</button>
+      <button class="tab" id="deptBtn_kg" onclick="setDeptFilter('Kindergarten',this)">Kindergarten</button>
+      <button class="tab" id="deptBtn_ss" onclick="setDeptFilter('Support Staff',this)">Support Staff</button>
+      <button class="tab" id="deptBtn_ad" onclick="setDeptFilter('admin',this)">Admin</button>
+    </div>
+    <div id="deptReportBtns" style="display:none;margin-left:auto;gap:8px;display:flex;flex-wrap:wrap;">
+      <button class="btn btn-green" onclick="exportDeptCSV()">⬇ CSV</button>
+      <button class="btn btn-purple" onclick="exportDeptPDF()">📄 PDF Report</button>
+    </div>
+  </div>
   <div class="tabs">
     <div class="tab active" onclick="adminTab('tabReport',this)">📋 Records</div>
     <div class="tab" onclick="adminTab('tabCharts',this)">📊 Charts</div>
@@ -609,18 +624,24 @@ async function getLocationAndIP(){
   }catch(e){ console.warn('IP lookup failed:',e.message); }
   // 2. Try to get precise GPS location
   try{
-    const pos=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{timeout:5000}));
+    const pos=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{timeout:8000,enableHighAccuracy:true}));
     lat=pos.coords.latitude; lon=pos.coords.longitude;
     // reverse geocode with nominatim
     try{
-      const geo=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+      const geo=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`,{headers:{'Accept-Language':'en'}});
       if(geo.ok){
         const gd=await geo.json();
         const addr=gd.address||{};
-        const parts=[addr.suburb||addr.neighbourhood||addr.village||addr.town||addr.city,addr.city||addr.county,addr.country].filter(Boolean);
-        if(parts.length) locationStr=parts.join(', ');
+        // Use the most local area name first, then the actual municipality/city, then country
+        const localArea=addr.neighbourhood||addr.suburb||addr.city_district||addr.quarter||addr.hamlet||addr.village||addr.town||'';
+        const cityName=addr.city||addr.town||addr.village||addr.municipality||addr.county||'';
+        const countryName=addr.country||'';
+        const parts=[localArea,cityName,countryName].filter(Boolean);
+        // Deduplicate consecutive identical parts
+        const unique=parts.filter((v,i)=>i===0||v!==parts[i-1]);
+        if(unique.length) locationStr=unique.join(', ');
       }
-    }catch(e){}
+    }catch(e){ console.warn('Reverse geocode failed:',e.message); }
   }catch(e){ console.warn('GPS unavailable:',e.message); }
   return { ip, locationStr, lat, lon };
 }
@@ -756,7 +777,7 @@ async function renderAttendanceBox(){
       box.innerHTML+=(isLate?`<div class="alert alert-orange">⚠️ Checking in <strong>${fmtDiff(n-CI_LATE)} late</strong> — will be marked <strong>Late</strong></div>`:'')
         +`<div class="alert alert-green">⏰ Check-In window is <strong>OPEN</strong> — closes at <strong>8:00 AM</strong></div>
         <div class="btn-group">
-          <button class="btn btn-green" onclick="window._submitCheckin('present')">✅ Present</button>
+          <button class="btn btn-green" onclick="window._submitCheckin('present')">✅ Check In</button>
           <button class="btn btn-orange" onclick="window._openLeave('short_leave')">⏱ Short Leave</button>
           <button class="btn btn-yellow" onclick="window._openLeave('leave')">📋 Leave</button>
           <button class="btn btn-red" onclick="window._submitCheckin('absent')">❌ Absent</button>
@@ -1025,6 +1046,84 @@ async function adminAutoAbsentForRange(start, end){
   }catch(e){ console.warn('Admin auto-absent error:',e.message); }
 }
 
+// ── Department / Subject Filter ───────────────────────────
+let currentDeptFilter='all';
+// Cache all teachers with their subjects for filtering
+let _teacherSubjectMap={}; // uid -> subject
+
+async function ensureTeacherSubjectMap(){
+  if(Object.keys(_teacherSubjectMap).length) return;
+  try{
+    const snap=await getDocs(collection(db,'users'));
+    snap.forEach(d=>{ const t=d.data(); if(t.role==='teacher'||t.role==='admin') _teacherSubjectMap[d.id]=t.subject||''; });
+  }catch(e){ console.warn('Could not load teacher subjects:',e.message); }
+}
+
+window.setDeptFilter=function(dept,btn){
+  currentDeptFilter=dept;
+  document.querySelectorAll('#deptFilterBtns .tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const reportBtns=$('deptReportBtns');
+  if(reportBtns) reportBtns.style.display=dept==='all'?'none':'flex';
+  loadAdminReport();
+};
+
+function deptMatchesSubject(subject, dept){
+  if(dept==='all') return true;
+  if(!subject) return false;
+  return subject.trim().toLowerCase()===dept.toLowerCase();
+}
+
+window.exportDeptCSV=async function(){
+  if(currentDeptFilter==='all') return;
+  await ensureTeacherSubjectMap();
+  const filterEl=$('aFilter'), fromEl=$('aFrom'), toEl=$('aTo');
+  let start,end;
+  if(fromEl&&fromEl.value&&toEl&&toEl.value){ start=fromEl.value; end=toEl.value; }
+  else{ const r=getDateRange(filterEl?filterEl.value:'daily'); start=r.start; end=r.end; }
+  try{
+    const q=query(collection(db,'attendance'),where('date','>=',start),where('date','<=',end),orderBy('date','desc'));
+    const snap=await getDocs(q); const rows=[];
+    snap.forEach(d=>{ const r={id:d.id,...d.data()}; const subj=_teacherSubjectMap[r.uid]||r.subject||''; if(deptMatchesSubject(subj,currentDeptFilter)) rows.push(r); });
+    if(!rows.length){ alert('No records for this department in the selected period.'); return; }
+    const header=['Name','ID','Subject','Date','Day','Check In','Late (min)','Check Out','Early (min)','Status','Reason','Location','IP'];
+    const csvRows=[header.join(',')];
+    rows.forEach(r=>{
+      const late=r.lateMinutes||lateMinutes(r.checkIn), early=r.earlyMinutes||earlyMinutes(r.checkOut);
+      csvRows.push([r.name,r.teacherId,_teacherSubjectMap[r.uid]||'',r.date,dayName(r.date),fmtTime(r.checkIn),late,fmtTime(r.checkOut),early,(r.status||'').replace('_',' '),r.leaveReason||'',r.checkInLocation||'',r.checkInIP||''].map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(','));
+    });
+    const blob=new Blob([csvRows.join('\n')],{type:'text/csv'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download=`${currentDeptFilter.replace(/\s+/g,'_')}_attendance_${start}_to_${end}.csv`; a.click();
+  }catch(e){ alert('Export error: '+e.message); }
+};
+
+window.exportDeptPDF=async function(){
+  if(currentDeptFilter==='all') return;
+  await ensureTeacherSubjectMap();
+  const filterEl=$('aFilter'), fromEl=$('aFrom'), toEl=$('aTo');
+  let start,end;
+  if(fromEl&&fromEl.value&&toEl&&toEl.value){ start=fromEl.value; end=toEl.value; }
+  else{ const r=getDateRange(filterEl?filterEl.value:'daily'); start=r.start; end=r.end; }
+  try{
+    const q=query(collection(db,'attendance'),where('date','>=',start),where('date','<=',end),orderBy('date','desc'));
+    const snap=await getDocs(q); const rows=[];
+    snap.forEach(d=>{ const r={id:d.id,...d.data()}; const subj=_teacherSubjectMap[r.uid]||r.subject||''; if(deptMatchesSubject(subj,currentDeptFilter)) rows.push(r); });
+    if(!rows.length){ alert('No records for this department in the selected period.'); return; }
+    const tableRows=rows.map(r=>{
+      const late=r.lateMinutes||lateMinutes(r.checkIn), early=r.earlyMinutes||earlyMinutes(r.checkOut);
+      return [r.name||'—',r.teacherId||'—',r.date,dayName(r.date),fmtTime(r.checkIn),late>0?`+${fmtDiff(late)}`:'—',fmtTime(r.checkOut),early>0?`-${fmtDiff(early)}`:'—',(r.status||'').replace('_',' '),r.leaveReason||'—',r.checkInLocation||'—'];
+    });
+    buildPDF(
+      `${currentDeptFilter} — Attendance Report`,
+      `Period: ${start} to ${end}  |  Total Records: ${rows.length}`,
+      ['Name','ID','Date','Day','Check In','Late','Check Out','Early','Status','Reason','Location'],
+      tableRows,
+      `${currentDeptFilter.replace(/\s+/g,'_')}_attendance_${start}.pdf`
+    );
+  }catch(e){ alert('PDF error: '+e.message); }
+};
+
 async function loadAdminReport(){
   const filterEl=$('aFilter'), fromEl=$('aFrom'), toEl=$('aTo');
   let start,end;
@@ -1035,9 +1134,16 @@ async function loadAdminReport(){
   try{
     // Auto-mark absent for any teacher with no record after 8:00 AM
     await adminAutoAbsentForRange(start, end);
+    // Ensure teacher->subject map is loaded for dept filtering
+    await ensureTeacherSubjectMap();
 
     const q=query(collection(db,'attendance'),where('date','>=',start),where('date','<=',end),orderBy('date','desc'));
-    const snap=await getDocs(q); const rows=[]; snap.forEach(d=>rows.push({id:d.id,...d.data()}));
+    const snap=await getDocs(q); let rows=[]; snap.forEach(d=>rows.push({id:d.id,...d.data()}));
+
+    // Apply department filter
+    if(currentDeptFilter!=='all'){
+      rows=rows.filter(r=>{ const subj=_teacherSubjectMap[r.uid]||r.subject||''; return deptMatchesSubject(subj,currentDeptFilter); });
+    }
     const cnt={present:0,absent:0,leave:0,short_leave:0,late:0,early_out:0};
     rows.forEach(r=>{ if(cnt[r.status]!==undefined) cnt[r.status]++; });
     $('sumPresent').textContent=cnt.present; $('sumAbsent').textContent=cnt.absent;
