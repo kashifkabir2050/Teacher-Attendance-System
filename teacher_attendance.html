@@ -606,7 +606,7 @@ function fmtDate(str){
 function fmt(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
 function badgeCls(s){ return {present:'b-green',absent:'b-red',leave:'b-yellow',short_leave:'b-orange',late:'b-orange',early_out:'b-purple',off:'b-gray'}[s]||'b-yellow'; }
 function lateMinutes(ts){ if(!ts) return 0; const d=ts.toDate?ts.toDate():new Date(ts); const m=d.getHours()*60+d.getMinutes(); return m>CI_LATE?m-CI_LATE:0; }
-function earlyMinutes(ts){ if(!ts) return 0; const d=ts.toDate?ts.toDate():new Date(ts); const m=d.getHours()*60+d.getMinutes(); return m<CO_SCHOOL?CO_SCHOOL-m:0; }
+function earlyMinutes(ts){ if(!ts) return 0; const d=ts.toDate?ts.toDate():new Date(ts); const m=d.getHours()*60+d.getMinutes(); return m<CO_SCHOOL?(CO_SCHOOL-m>1?CO_SCHOOL-m:0):0; }
 function fmtDiff(m){ if(!m||m<=0) return '—'; return m<60?`${m}m`:`${Math.floor(m/60)}h ${m%60}m`; }
 // ── Location & IP Detection ────────────────────────────────
 async function getLocationAndIP(){
@@ -870,7 +870,7 @@ window._submitLeave=async()=>{
   }catch(e){ alert('Error: '+e.message); }
 };
 window._submitCheckout=async()=>{
-  const docId=`${currentUser.uid}_${todayStr()}`, n=nowMin(), earlyMin=n<CO_SCHOOL?CO_SCHOOL-n:0;
+  const docId=`${currentUser.uid}_${todayStr()}`, n=nowMin(), earlyMin=(n<CO_SCHOOL&&(CO_SCHOOL-n)>1)?CO_SCHOOL-n:0;
   try{
     const {ip,locationStr,lat,lon}=await getLocationAndIP();
     await updateDoc(doc(db,'attendance',docId),{ checkOut:Timestamp.now(), earlyMinutes:earlyMin, checkOutIP:ip, checkOutLocation:locationStr, checkOutLat:lat, checkOutLon:lon });
@@ -1090,8 +1090,10 @@ window.exportDeptCSV=async function(){
     const csvRows=[header.join(',')];
     rows.forEach(r=>{
       const late=r.lateMinutes||lateMinutes(r.checkIn), early=r.earlyMinutes||earlyMinutes(r.checkOut);
-      const ciTime=r.checkIn?fmtTime(r.checkIn):'';
-      const coTime=r.checkOut?fmtTime(r.checkOut):'';
+      const hasCI=r.checkIn&&(r.checkIn.seconds||r.checkIn instanceof Date);
+      const hasCO=r.checkOut&&(r.checkOut.seconds||r.checkOut instanceof Date);
+      const ciTime=hasCI?fmtTime(r.checkIn):'';
+      const coTime=hasCO?fmtTime(r.checkOut):'';
       const lateVal=late>0?late:'';
       const earlyVal=early>0?early:'';
       const locVal=(r.checkInLocation&&r.checkInLocation!=='Unknown')?r.checkInLocation:'';
