@@ -608,41 +608,130 @@ function badgeCls(s){ return {present:'b-green',absent:'b-red',leave:'b-yellow',
 function lateMinutes(ts){ if(!ts) return 0; const d=ts.toDate?ts.toDate():new Date(ts); const m=d.getHours()*60+d.getMinutes(); return m>CI_LATE?m-CI_LATE:0; }
 function earlyMinutes(ts){ if(!ts) return 0; const d=ts.toDate?ts.toDate():new Date(ts); const m=d.getHours()*60+d.getMinutes(); return m<CO_SCHOOL?(CO_SCHOOL-m>1?CO_SCHOOL-m:0):0; }
 function fmtDiff(m){ if(!m||m<=0) return '—'; return m<60?`${m}m`:`${Math.floor(m/60)}h ${m%60}m`; }
-// ── Location & IP Detection ────────────────────────────────
+// ── Location & IP Detection (robust multi-fallback) ────────
 async function getLocationAndIP(){
-  let ip='Unknown', city='Unknown', country='', lat=null, lon=null, locationStr='Unknown';
-  // 1. Get IP + rough location from ipapi
-  try{
-    const res=await fetch('https://ipapi.co/json/');
-    if(res.ok){
-      const d=await res.json();
-      ip=d.ip||'Unknown';
-      city=d.city||''; country=d.country_name||'';
-      lat=d.latitude||null; lon=d.longitude||null;
-      locationStr=[city,country].filter(Boolean).join(', ')||'Unknown';
-    }
-  }catch(e){ console.warn('IP lookup failed:',e.message); }
-  // 2. Try to get precise GPS location
-  try{
-    const pos=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{timeout:8000,enableHighAccuracy:true}));
-    lat=pos.coords.latitude; lon=pos.coords.longitude;
-    // reverse geocode with nominatim
+  let ip='Unknown', lat=null, lon=null, locationStr='Unknown';
+
+  // ── STEP 1: Get IP with 3 fallback services ──────────────
+  // Service A: ipapi.co (full geo data)
+  const tryIpapiCo = async () => {
+    const res = await fetch('https://ipapi.co/json/',{signal:AbortSignal.timeout(5000)});
+    if(!res.ok) throw new Error('ipapi.co HTTP '+res.status);
+    const d = await res.json();
+    if(d.error) throw new Error('ipapi.co: '+d.reason);
+    return d;
+  };
+  // Service B: ip-api.com (free, 45 req/min, no HTTPS on free but works via http)
+  const tryIpApi = async () => {
+    const res = await fetch('https://ip-api.com/json/?fields=status,message,query,city,country,lat,lon',{signal:AbortSignal.timeout(5000)});
+    if(!res.ok) throw new Error('ip-api HTTP '+res.status);
+    const d = await res.json();
+    if(d.status!=='success') throw new Error('ip-api: '+d.message);
+    return { ip:d.query, city:d.city||'', country_name:d.country||'', latitude:d.lat, longitude:d.lon };
+  };
+  // Service C: ipify (IP only) + bigdatacloud (geo from IP)
+  const tryIpify = async () => {
+    const r1 = await fetch('https://api.ipify.org?format=json',{signal:AbortSignal.timeout(5000)});
+    if(!r1.ok) throw new Error('ipify HTTP '+r1.status);
+    const j1 = await r1.json();
+    const detectedIp = j1.ip||'Unknown';
+    // Get city from bigdatacloud
+    const r2 = await fetch(`https://api.bigdatacloud.net/data/ip-geolocation?ip=${detectedIp}&localityLanguage=en`,{signal:AbortSignal.timeout(5000)});
+    const city = r2.ok ? ((await r2.json()).city||'') : '';
+    return { ip:detectedIp, city, country_name:'', latitude:null, longitude:null };
+  };
+
+  let ipapiData = null;
+  for(const fn of [tryIpapiCo, tryIpApi, tryIpify]){
     try{
-      const geo=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`,{headers:{'Accept-Language':'en'}});
-      if(geo.ok){
-        const gd=await geo.json();
-        const addr=gd.address||{};
-        // Use the most local area name first, then the actual municipality/city, then country
-        const localArea=addr.neighbourhood||addr.suburb||addr.city_district||addr.quarter||addr.hamlet||addr.village||addr.town||'';
-        const cityName=addr.city||addr.town||addr.village||addr.municipality||addr.county||'';
-        const countryName=addr.country||'';
-        const parts=[localArea,cityName,countryName].filter(Boolean);
-        // Deduplicate consecutive identical parts
-        const unique=parts.filter((v,i)=>i===0||v!==parts[i-1]);
-        if(unique.length) locationStr=unique.join(', ');
+      ipapiData = await fn();
+      if(ipapiData && ipapiData.ip && ipapiData.ip!=='Unknown') break;
+    }catch(e){ console.warn('IP service failed, trying next:',e.message); }
+  }
+  if(ipapiData){
+    ip = ipapiData.ip || 'Unknown';
+    const city = ipapiData.city||'';
+    const country = ipapiData.country_name||'';
+    lat = ipapiData.latitude||null;
+    lon = ipapiData.longitude||null;
+    locationStr = [city,country].filter(Boolean).join(', ')||'Unknown';
+  }
+
+  // ── STEP 2: Try precise GPS (overrides IP-based location) ─
+  const gpsSuccess = await new Promise(resolve => {
+    if(!navigator.geolocation){ resolve(false); return; }
+    // Show a non-blocking timeout — try for up to 12s
+    const timer = setTimeout(()=>resolve(false), 12000);
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        clearTimeout(timer);
+        lat = pos.coords.latitude;
+        lon = pos.coords.longitude;
+        resolve(true);
+      },
+      err => {
+        clearTimeout(timer);
+        console.warn('GPS error ('+err.code+'):',err.message);
+        resolve(false);
+      },
+      { timeout:11000, enableHighAccuracy:true, maximumAge:60000 }
+    );
+  });
+
+  // ── STEP 3: Reverse geocode if we have GPS coords ─────────
+  if(gpsSuccess && lat && lon){
+    // Try Nominatim first
+    const tryNominatim = async () => {
+      const geo = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`,
+        { headers:{'Accept-Language':'en','User-Agent':'TeacherAttendanceApp/1.0'}, signal:AbortSignal.timeout(7000) }
+      );
+      if(!geo.ok) throw new Error('Nominatim HTTP '+geo.status);
+      const gd = await geo.json();
+      const addr = gd.address||{};
+      const localArea = addr.neighbourhood||addr.suburb||addr.city_district||addr.quarter||addr.hamlet||addr.village||addr.town||'';
+      const cityName  = addr.city||addr.town||addr.village||addr.municipality||addr.county||'';
+      const countryName = addr.country||'';
+      const parts  = [localArea,cityName,countryName].filter(Boolean);
+      const unique = parts.filter((v,i)=>i===0||v!==parts[i-1]);
+      if(!unique.length) throw new Error('No address from Nominatim');
+      return unique.join(', ');
+    };
+    // Fallback: BigDataCloud reverse geocode (free, no key needed)
+    const tryBDC = async () => {
+      const r = await fetch(
+        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`,
+        { signal:AbortSignal.timeout(7000) }
+      );
+      if(!r.ok) throw new Error('BigDataCloud HTTP '+r.status);
+      const d = await r.json();
+      const parts = [d.locality||d.principalSubdivision||'', d.countryName||''].filter(Boolean);
+      if(!parts.length) throw new Error('No address from BDC');
+      return parts.join(', ');
+    };
+    for(const fn of [tryNominatim, tryBDC]){
+      try{
+        const result = await fn();
+        if(result){ locationStr = result; break; }
+      }catch(e){ console.warn('Reverse geocode service failed, trying next:',e.message); }
+    }
+  }
+
+  // ── STEP 4: If still no GPS but IP gave coords, use those for reverse geocode ──
+  if(!gpsSuccess && lat && lon && locationStr==='Unknown'){
+    try{
+      const r = await fetch(
+        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`,
+        { signal:AbortSignal.timeout(5000) }
+      );
+      if(r.ok){
+        const d = await r.json();
+        const parts = [d.locality||d.principalSubdivision||'', d.countryName||''].filter(Boolean);
+        if(parts.length) locationStr = parts.join(', ');
       }
-    }catch(e){ console.warn('Reverse geocode failed:',e.message); }
-  }catch(e){ console.warn('GPS unavailable:',e.message); }
+    }catch(e){ console.warn('IP-based reverse geocode failed:',e.message); }
+  }
+
   return { ip, locationStr, lat, lon };
 }
 
